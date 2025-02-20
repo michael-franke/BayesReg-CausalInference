@@ -1,0 +1,51 @@
+
+\documentclass[fleqn,reqno,10pt]{article}
+
+\usepackage[]{mypackages}
+
+\usepackage{mycommands}
+
+\usepackage{verbatim}
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\setlength\PreviewBorder{2pt}
+
+\usetikzlibrary{calc}
+
+\usepackage{pgfplots}
+
+\begin{document}
+
+\begin{tikzpicture}[
+  node distance = 1.25cm,
+  double distance = 2pt,
+  minimum size=0.75cm,
+  circle,
+  thick]
+
+  % NODES
+
+  % anchor
+  \node[] (anchor) {};
+
+  % node X
+  \node[draw=black, left of = anchor] (X) {$D$};
+
+  % node Y
+  \node[draw=black, right of = anchor] (Y) {$R$};
+
+  % node Z
+  \node[draw=black, above of = anchor] (Z) {$G$};
+
+  % ARROWS
+
+  \draw[->, color = independence-light-3] (Z)--(X);
+  \draw[->, color = independence-light-3] (X)--(Y);
+  \draw[->, color = independence-light-3] (Z)--(Y);
+
+  \draw[->, ultra thick, color = CSP-emphasis] (X)--(Z);
+  \draw[->, ultra thick, color = CSP-emphasis] (Z)--(Y);
+
+\end{tikzpicture}
+
+\end{document}

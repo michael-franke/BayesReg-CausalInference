@@ -1,0 +1,61 @@
+\documentclass[fleqn,reqno,10pt]{article}
+
+\usepackage[]{mypackages}
+\usepackage{mycommands}
+\usepackage{CSPstyles}
+
+\usepackage{verbatim}
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\setlength\PreviewBorder{2pt}
+
+\usetikzlibrary{calc}
+
+\usepackage{pgfplots}
+
+\begin{document}
+
+% total causal effect: all ways in which X can causally affect Y
+% all ways of reaching Y causally downstream
+
+\begin{tikzpicture}[
+  node distance = 1.25cm,
+  double distance = 2pt,
+  minimum size=0.75cm,
+  circle,
+  thick]
+
+  % NODES
+
+  % anchor
+  \node[] (anchor) {};
+
+  % node X
+  \node[draw=black, left of = anchor] (X) {$X$};
+
+  % node Y
+  \node[draw=black, right of = anchor] (Y) {$Y$};
+
+  % node Z1
+  \node[draw=black, above of = anchor] (Z1) {$Z_{1}$};
+
+  % node Z2
+  \node[draw=black, below of = anchor] (Z2) {$Z_{2}$};
+
+  % ARROWS causal
+
+  \draw[->, color = independence-light-3] (X)--(Y);
+  \draw[->, color = independence-light-3] (Z1)--(X);
+  \draw[->, color = independence-light-3] (Z1)--(Y);
+  \draw[->, color = independence-light-3] (X)--(Z2);
+  \draw[->, color = independence-light-3] (Z2)--(Y);
+
+  % ARROWS information flow
+
+  \draw [->, ultra thick, color = CSP-emphasis ] (X) -- (Y);
+  \draw [->, ultra thick, color = CSP-emphasis ] (X) -- (Z2);
+  \draw [->, ultra thick, color = CSP-emphasis ] (Z2) -- (Y);
+
+\end{tikzpicture}
+
+\end{document}

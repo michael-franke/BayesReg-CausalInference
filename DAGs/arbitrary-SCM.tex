@@ -1,0 +1,62 @@
+\documentclass[fleqn,reqno,10pt]{article}
+
+\usepackage[]{mypackages}
+
+\usepackage{mycommands}
+\usepackage{CSPstyles}
+
+\usepackage{verbatim}
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\setlength\PreviewBorder{2pt}
+
+\usetikzlibrary{calc}
+
+\usepackage{pgfplots}
+
+\begin{document}
+
+\begin{tikzpicture}[
+  node distance = 1.25cm,
+  double distance = 2pt,
+  minimum size=0.75cm,
+  circle,
+  thick]
+
+  % NODES
+
+  % anchor
+  \node[] (anchor) {};
+
+  % node U2
+  \node[draw=black, left of = anchor, color = glaucous-main] (U2) {$U_{{2}}$};
+
+  % node X1
+  \node[draw=black, above of = U2] (X1) {$X_{1}$};
+
+  % node U1
+  \node[draw=black, above of = X1, color = glaucous-main] (U1) {$U_{{1}}$};
+
+  % node X2
+  \node[draw=black, below of = U2] (X2) {$X_{2}$};
+
+  % node Y
+  \node[draw=black, right of = anchor] (Y) {$Y$};
+
+  % node Y
+  \node[draw=black, right of = anchor] (Y) {$Y$};
+
+  % node UY
+  \node[draw=black, above of = Y, color = glaucous-main] (UY) {$U_{y}$};
+
+  % ARROWS
+
+  \draw[->] (U1)--(X1);
+  \draw[->] (U2)--(X2);
+  \draw[->] (X1)--(Y);
+  \draw[->] (X2)--(Y);
+  \draw[->] (UY)--(Y);
+
+\end{tikzpicture}
+
+\end{document}

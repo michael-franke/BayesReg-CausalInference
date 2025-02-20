@@ -1,0 +1,47 @@
+\documentclass[fleqn,reqno,10pt]{article}
+
+\usepackage[]{mfpackages}
+
+\usepackage{mfcommands}
+
+\usepackage{verbatim}
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\setlength\PreviewBorder{2pt}
+
+\usetikzlibrary{calc}
+
+\usepackage{pgfplots}
+
+\begin{document}
+
+\begin{tikzpicture}[
+  node distance = 1.25cm,
+  double distance = 2pt,
+  minimum size=0.75cm,
+  circle,
+  thick]
+
+  % NODES
+
+  % anchor
+  \node[] (anchor) {};
+
+  % node X
+  \node[draw=black, left of = anchor] (X) {$X$};
+
+  % node Y
+  \node[draw=black, right of = anchor] (Y) {$Y$};
+
+  % node Z
+  \node[draw=black, below of = anchor] (Z) {$Z$};
+
+  % ARROWS
+
+  \draw[->] (X)--(Z);
+
+  \draw[->] (Y)--(Z);
+
+\end{tikzpicture}
+
+\end{document}

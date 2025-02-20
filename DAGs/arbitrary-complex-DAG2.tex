@@ -1,0 +1,69 @@
+\documentclass[fleqn,reqno,10pt]{article}
+
+\usepackage[]{mypackages}
+
+\usepackage{mycommands}
+
+\usepackage{verbatim}
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\setlength\PreviewBorder{2pt}
+
+\usetikzlibrary{calc}
+
+\usepackage{pgfplots}
+
+\begin{document}
+
+\begin{tikzpicture}[
+  node distance = 1.25cm,
+  double distance = 2pt,
+  minimum size=0.75cm,
+  circle,
+  thick]
+
+  % NODES
+
+  % anchor
+  \node[] (anchor) {};
+
+  % node anchor2
+  \node[above of = anchor] (anchor2) {};
+
+  % node X
+  \node[draw=black, left of = anchor] (X) {$X$};
+
+  % node Y
+  \node[draw=black, right of = anchor] (Y) {$Y$};
+
+  % node W
+  \node[draw=black, above of = anchor2] (W) {$W$};
+
+  % node Z
+  \node[draw=black, above of = Y] (Z) {$Z$};
+
+  % node V
+  \node[draw=black, above of = X] (V) {$V$};
+
+  % node U
+  \node[draw=black, below of = anchor] (U) {$U$};
+
+  % ARROWS
+
+  \draw[->] (X)--(Y);
+
+  \draw[->] (W)--(Z);
+
+  \draw[->] (W)--(V);
+
+  \draw[->] (V)--(X);
+
+  \draw[->] (Y)--(U);
+
+  \draw[->] (X)--(U);
+
+  \draw[->] (Z)--(Y);
+
+\end{tikzpicture}
+
+\end{document}

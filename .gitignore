@@ -1,1 +1,14 @@
-/.DS_Store
+**/.DS_Store
+**/*.aux
+**/*.el
+**/*.bbl
+**/*.blg
+**/*.fls
+**/*.fdb_latexmk
+**/*.log
+**/*.out
+**/*.bcf
+**/*.run.xml
+**/*.synctex.gz
+**/.auctex-auto
+**/.Rhistory

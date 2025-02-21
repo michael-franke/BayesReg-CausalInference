@@ -193,10 +193,11 @@ CORRELATION DOES NOT IMPLY CAUSATION!
 In scientific education, this is often one of the first lessons in statistics. 
 We are told, time and again, that we should be weary of interpreting data collected by observation. 
 If we want to establish a causal relationship, we are taught that there is one gold standard: the randomized experiment.
-However, there are severe limitations to the randomized experiment framework. 
+However, there are severe limitations to the randomized experiment framework.
+\marginnote[-2.15cm]{The decision of which variables should be included in a regression model (good controls) and which should not be (bad controls) arguably requires reasoning about the likely causal data-generating process, and it can be facilitated by visual representation through cDAGs of the kind introduced below \citep{CinelliForney2022:A-Crash-Course-}.}
 For some research, randomized experiments are too expensive, too unethical, or downright impossible. 
 Maybe we have old data and don't know how it was obtained. 
-Even if we are able to perform a randomized experiment, the independent variables we investigate might not be independent from each other. \mf{TODO: give some references for choice of proper controls}
+Even if we are able to perform a randomized experiment, the independent variables we investigate might not be independent from each other.
 What are we to do in these cases?
 
 There are multiple methods to estimate causal effects from any given data set, irrespective of whether it was obtained by experimental manipulation or not.

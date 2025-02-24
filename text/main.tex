@@ -160,7 +160,7 @@
 %========================================
 
 
-\title{Causal analyses with Bayesian regression modeling: A tutorial}
+\title{Causal inference with Bayesian regression modeling: A tutorial}
 \author{Lena Holzwarth \& Michael Franke}
 \date{}
 
@@ -201,7 +201,7 @@ Even if we are able to perform a randomized experiment, the independent variable
 What are we to do in these cases?
 
 There are multiple methods to estimate causal effects from any given data set, irrespective of whether it was obtained by experimental manipulation or not.
-\marginnote[-2.5cm]{While this tutorial is not concerned with historical background or direct comparison of the \docalc to other approaches, Info Box~1 briefly describes prominent alternatives, namely the \textit{potential outcomes framework} and \textit{structural equation modeling}. The information from Info Box~1 is not required for the remainder of the tutorial.}
+\marginnote[-2.5cm]{While this tutorial is not concerned with historical background or direct comparison of the \docalc to other approaches, Info Box~2 at the end of this tutorial briefly describes prominent alternatives, namely the \textit{potential outcomes framework} and \textit{structural equation modeling}. The information from Info Box~2 is not required for the remainder of the tutorial.}
 This tutorial covers one of them: the \docalc.
 
 The process of causal effect estimation using the \docalc, as introduced in this tutorial, is illustrated in Figure~\ref{fig:flow-chart}.
@@ -265,67 +265,19 @@ The data set instantiates a case of \textit{Simpson's paradox}.
 In Section~4, the theoretical background to the \docalc is explained and we use a maximum-likelihood approach to estimate the relevant causal effects for our running example.
 Finally, Section~5 guides you through the practical application of the \docalc in a Bayesian regression modeling framework. 
 
-\begin{InfoBox}
-\centering
-\colorbox{mygray}{
-  \centering
-  \begin{minipage}{1\textwidth}
-    \medskip
-    
-    \emph{The Neyman-Rubin Causal Model / potential outcome framework}
-    \medskip
-    
-    The Neyman-Rubin causal model is based on the framework of potential outcomes that a treatment would have on an individual. 
-    As an example, let's consider going to college as the treatment, and future income as the outcome of interest. 
-    The causal effect of going to college on the individual's future income is defined as the difference between the income with and without a college degree. 
-    This notion of causal effect is a hypothetical measure, as the potential outcomes are counterfactual and only one of them can be observed.
-    Importantly, the potential outcomes are treated as fixed quantities and not random variables.
-    This is different from \docalc, where the outcomes are also stochastic, and the assignment of treatment is fixed/deterministic.
-    The only stochastic process in the Neyman-Rubin causal model is the assignment of treatment, which depends on the observable characteristics $X$.
-    These could, for example, be high school grades, socio-economic background or gender.
-    Because the potential outcomes are fixed, any two individuals who share the same set of characteristics $X$ have the same potential outcomes. 
-    This can be leveraged to compute the causal effect.
-    For each combination of values $X$ can take, the income of individuals who went to college can be compared with that of those who didn't. 
-    This procedure is called matching. 
-    Because it is in most cases not easy to find individuals with exactly matching values of $X$, especially for continuous variables, there are different proposed matching methods \citep{sekhon2008neyman}.
-   
-    \medskip
-
-    \emph{Structural Equation Modeling}
-    \medskip
-
-    A structural equation model (SEM) is a causal model that combines observable and latent variables.
-    The causal connections between variables are represented with equations and treated as a-priori.
-    SEMs can also be represented graphically in path diagrams.
-    A path diagram is not the same as a cDAG, because it is not acyclic and can involve feedback relations. However, in this case, the model is underidentified and non-testable.
-    The goal of a SEM is to estimate the values of latent variables from the measured values of the observable variables. 
-    SEMs can be evaluated with measures of model fit. 
-    In case of a bad fit, the causal assumptions underlying model formulation can be regarded as falsified \citep{bollen2013eight}. 
-
-    It has been shown that the potential outcome framework and structural equation modeling are logically equivalent \citep{galles1998axiomatic, halpern2000axiomatizing}. 
-    \citet{pearl2000models} combined features of the potential outcome framework and SEM to formulate the structural causal model as a general theory of causation.
-    
-    \medskip
-    
-    
-  \end{minipage} 
-}
-\begin{center}
-Info Box 1: Alternatives to the \docalc for causal inference.
-\end{center}
-\end{InfoBox}    
 
 
 \section{Fictitious data \& Simpson's paradox}\label{sec:experiment}
 
-To guide you through the steps of estimating causal effects with the \docalc, we'll look at an example.
+To guide you through the steps of estimating causal effects with the \docalc, we'll look at a concrete numerical example (see Table~\ref{tab:anonymous}).
 Let's assume that we work in a hospital and want to test the effect of a new drug. 
 Because this drug is still in an experimental phase, we can't randomly assign it to patients. 
 Instead, we ask them if they would be willing to test the drug.
 In our experiment, we have a random variable (RV) \textsc{drug intake} with two possible values: \textsc{take} for the participants consenting to test the drug and \textsc{refuse} for those who declined. 
 The patients are also sorted into two groups (more on the nature of these groups below).
 
-\begin{margintable}
+
+\begin{margintable}[-6cm]
   \centering
   \caption{Recovery rates after refusing or taking the drug}
   \label{tab:anonymous}
@@ -340,9 +292,9 @@ The patients are also sorted into two groups (more on the nature of these groups
   \end{tblr}
 \end{margintable}
 
+\marginnote[-0.5cm]{The distribution of recovery rates is taken from a real-life medical study \citep{charig1986comparison} and was first discussed in relation to Simpson's Paradox by \citet{julious1994confounding}. The hypothetical experimental setup and the labels of the RVs come from \citet{pearl2000models}.}
 
-\marginnote[1cm]{The distribution of recovery rates is taken from a real-life medical study \citep{charig1986comparison} and was first discussed in relation to Simpson's Paradox by \citet{julious1994confounding}. The hypothetical experimental setup and the labels of the RVs come from \citet{pearl2000models}.}
-In Table~\ref{tab:combined}~(a), we can see the results of our study.
+In Table~\ref{tab:anonymous}, we can see the results of our study.
 We see that overall, 83\% of patients who refused the drug recovered from their disease, while only 78\% of the drug-takers did. 
 This does not bode well for our drug.
 However, when we look at each group in isolation, we see that within each group, the drug-takers had a slightly higher recovery rate.
@@ -361,6 +313,14 @@ However, \textsc{gender} might also influence the decision to take the drug, e.g
 With the updated group names, the results are displayed in Table \ref{tab:combined}~(a).
 How should we interpret these results?\footnote{The correct answer would, of course, be `not at all' - We haven't done our causal analysis yet, this pattern is merely a correlation.}
 Our intuition might be that the drug is in fact beneficial, because for men and women, the chances of recovery are higher for those who took the drug.
+
+
+Table~\ref{tab:combined}~(b) shows a second scenario for the same numerical values.
+Here, the participants were not grouped by gender, but by their blood pressure as measured \textit{after} taking the drug.
+Participants are divided into groups with high or low blood pressure. 
+In this case, our intuition is likely different. 
+Because blood pressure is measured after drug administration and is likely to be influenced by the drug, it seems that the groupings into \textsc{high} and \textsc{low} are not as informative, and we should instead focus on the overall results, that tell us that the drug might even be harmful.
+
 
 \begin{table*}[t]
 
@@ -412,17 +372,6 @@ Our intuition might be that the drug is in fact beneficial, because for men and 
 
 \end{table*}
 
-Table~\ref{tab:combined}~(b) shows a second scenario for the same numerical values.
-Here, the participants were not grouped by gender, but by their blood pressure as measured \textit{after} taking the drug.
-Participants are divided into groups with high or low blood pressure. 
-In this case, our intuition is likely different. 
-Because blood pressure is measured after drug administration and is likely to be influenced by the drug, it seems that the groupings into \textsc{high} and \textsc{low} are not as informative, and we should instead focus on the overall results, that tell us that the drug might even be harmful.
-
-Why is it that we interpret the data differently, depending on the group labels? 
-The reason is that the different labels tell us something about the causal structure of our experiment.
-To bring our knowledge about likely causal dependencies to the fore, the following section looks at
-how to determine the causal structure in a data-generating process (\textit{\nameref{sec:step1}}), 
-and how to use this information to estimate causal effects (\textit{\nameref{sec:step2}}).
 
 \begin{InfoBox}
 \centering
@@ -432,11 +381,11 @@ and how to use this information to estimate causal effects (\textit{\nameref{sec
     \emph{Directed acyclic graphs (DAGs) for causal analysis}
     \medskip
 
-    DAGs can be used to illustrate the causal relationships between events or RVs. 
+    DAGs can be used to illustrate the causal relationships between events or RVs.
     %For simplicity, we only consider binary RVs.
     When two nodes in a causal DAG (cDAG) are connected, the RVs that they represent are statistically dependent.
     The RV with the outgoing edge causally influences the RV with the incoming edge.
-    cDAGs must be directed and acyclic because causal relationships are one-way only. 
+    cDAGs must be directed and acyclic because causal relationships are one-way only.
     \begin{center}
         \begin{tikzpicture}[
         node distance = 1.25cm,
@@ -444,7 +393,7 @@ and how to use this information to estimate causal effects (\textit{\nameref{sec
         minimum size=0.75cm,
         circle,
         thick]
-    
+
         % NODES
         % anchor
         \node[] (anchor) {};
@@ -452,20 +401,20 @@ and how to use this information to estimate causal effects (\textit{\nameref{sec
         \node[draw=black, left of = anchor] (A) {$A$};
         % node Y
         \node[draw=black, right of = anchor] (B) {$B$};
-    
+
         % ARROWS
         \draw[->] (A)--(B);
         \end{tikzpicture}
     \end{center}
-    In this example, the RV $A$ influences the value of the RV $B$. 
-    Importantly, this relationship is not necessarily  deterministic, s.t. $A=1$ always implies $B=1$. 
+    In this example, the RV $A$ influences the value of the RV $B$.
+    Importantly, this relationship is not necessarily  deterministic, s.t. $A=1$ always implies $B=1$.
     Instead, it is usually stochastic, s.t. some value of $A$ makes it more likely for $B$ to take a certain value, e.g., $P(B=1 \mid A=1) > P(B=0 \mid A=1)$.
 
     cDAGs can be comprised of infinitely many nodes.
     All of their relationships can be brought down to a limited set of shapes.
     Some of these are shown below: the chain and the fork.
     Understanding these granular causal structures helps to interpret more complex cDAGs.
-    
+
     \begin{center}
         \begin{tikzpicture}[
         node distance = 1.25cm,
@@ -473,26 +422,26 @@ and how to use this information to estimate causal effects (\textit{\nameref{sec
         minimum size=0.75cm,
         circle,
         thick]
-    
+
         % NODES
         % anchors
         \node[] (ANCHOR) {};
-        
+
         \node[draw=black, left of = ANCHOR, node distance = 3.75cm] (anchor_chain) {$Z$};
         \node[below of = ANCHOR, node distance = 0.625cm] (anchor_fork) {};
-        
+
         % chain
         \node[draw=black, left of = anchor_chain] (chainX) {$X$};
         \node[draw=black, right of = anchor_chain] (chainY) {$Y$};
         \node[below of = anchor_chain, node distance = 1.525cm] (chain_cap) {\textit{chain (mediator)}};
-        
+
         % fork
         \node[draw=black, left of = anchor_fork] (forkX) {$X$};
         \node[draw=black, right of = anchor_fork] (forkY) {$Y$};
         \node[draw=black, above of = anchor_fork] (forkZ) {$Z$};
         \node[below of = anchor_fork, node distance = 0.9cm] (fork_cap) {\textit{fork (confound)}};
 
-    
+
         % ARROWS
         \draw[->] (chainX)--(anchor_chain);
         \draw[->] (anchor_chain)--(chainY);
@@ -500,22 +449,22 @@ and how to use this information to estimate causal effects (\textit{\nameref{sec
         \draw[->] (forkZ)--(forkY);
         \end{tikzpicture}
     \end{center}
-    
+
     \vspace{-1.25cm}
-    In a chain, $X$ and $Y$ are causally dependent: $X$ influences the value of the mediator $Z$, which influences $Y$. 
+    In a chain, $X$ and $Y$ are causally dependent: $X$ influences the value of the mediator $Z$, which influences $Y$.
     Using the example of our hypothetical experiment, $X$ could be a drug which influences the blood pressure level $Z$, which influences the likelihood of recovery $Y$.
     However, $X$ and $Y$ are independent conditioned on $Z$.
     If the value of blood pressure $Z$ is known, the value of $X$ (drug or no drug) gives us no further information about the recovery $Y$, because the only way in which the drug influences recovery is through adjusting the level of blood pressure.
 
-    In a fork, $Z$ acts as a confound on $X$ and $Y$. 
-    $X$ and $Y$ are dependent, because they have a common cause in $Z$. 
+    In a fork, $Z$ acts as a confound on $X$ and $Y$.
+    $X$ and $Y$ are dependent, because they have a common cause in $Z$.
     $Z$ could be a variable for exercise, which influences both weight $X$ and danger of a heart disease $Y$.
-    $X$ and $Y$ become independent conditioned on $Z$. 
+    $X$ and $Y$ become independent conditioned on $Z$.
     This is because when the amount of exercise $Z$ is given, knowing the value of a person's weight $X$ yields no further information on their risk of cardiac disease $Y$.
 
     For a visual explanation of these causal structures see  \href{https://youtu.be/mBEA7PKDmiY?si=Ihio7ZXJSuct4J30}{{\color{Red}{this lecture}}} by Richard McElreath.
     \medskip
-  \end{minipage} 
+  \end{minipage}
 }
 \begin{center}
 Info Box 2: Background on visually displaying causal relationships.
@@ -524,6 +473,14 @@ Info Box 2: Background on visually displaying causal relationships.
 
 
 \section{Causal inference with the \docalc} \label{sec:theory}
+
+The previous considerations suggest that our intuitions about the correct conclusions to be drawn from experimental data rely on intuitive knowledge of the likely causal role of the relevant measured quantities.
+The first step of causal inference is therefore to make such intuitive knowledge explicit (shareable, transparent, open to constructive criticism), e.g., in a formal structure \textit{causal models}, a version of which is introduced in Section~\ref{sec:step1}.
+The next step is to determine, based on the concrete formalized assumptions of the data-generating causal process in a given causal model, what the effects of \textit{intervening} on a variable would be, as described in Section~\ref{sec:step2}.
+This allows us to specify a formula with which to calculate a notion of (average) causal effect (Section~\ref{sec:step3}), which we can then estimate based on the extant observational data, in a final fourth step (Section~\ref{sec:step4}).
+
+
+
 \subsection{Step 1: Establish the Causal Structure} \label{sec:step1}
 
 
@@ -723,15 +680,33 @@ That is, essentially, the main property that makes experimental manipulation wor
 And it is exactly this (cutting off the prior causal influences on the relevant variable ($D$)) that the \docalc implements.
 In other words, the \docalc is not some crazy math-voodoo but the most straightforward implementation of what we intuitively consider to be (the power of) systematic experimental manipulation.
 
-Okay, so we have a way of formally representing simulated interventions.
-Great!
-But how do we get from virtual interventions to a causal effect estimation? 
+\subsection{Step 3: Define the causal effect} \label{sec:step3}
+
+Given an explicit causal model and a way to represent the idea of an intervention on a variable, we can define what we mean when we speak of a \textit{causal effect}.
+Actually, the term ``causal effect'' does not have a clear and crisp intuitive meaning, and it probably refers to a nebulous cluster of related elusive concepts.
+However, with cDAGs and the \docalc, we can clearly and formally define a number of notions of causal effects.
+Here we focus on the most salient starting point.
+The \textit{average causal effect} of variable $X$ on variable $Y$ is the expected amount of increase of $Y$ given that $X$ is changed (by intervention).
+More concretely, for the case of two binary variable such as recovery $R$ and drug use $D$, the average causal effect describes the increase in the probability of recovery $R = 1$ when going from $\mathdo(D=0)$ to $\mathdo(D=1)$, i.e., going from a situation where we intervened so that the drug was \textit{not} given to a situation where we intervened so that the drug \textit{was} given.
+In a formula, the average causal effect for our running example is:
+\begin{align*}
+  \mathrm{Avg-CE}(P \mid D) = & \ P(R=1 \mid \mathdo(D=1)) \  -
+                        \\ & \ P(R=1 \mid \mathdo(D=0))
+\end{align*}
+
+
+\subsection{Step 4: Compute the causal effect (if possible)} \label{sec:step4}
+
+After defining the causal model to work with and the causal effect of interest, the real challenge arises, namely to calculate the causal effect, if possible, for the given data at hand.
+This raises deep conceptual questions:
+How do we get from virtual interventions to a causal effect estimation?
 And why are we allowed to pretend that an intervention has happened, when the data we have are obtained from a completely different causal structure?
-The following subsections will guide you through a mathematical example to obtain a \textit{maximum likelihood estimate} (MLE) of the causal effect in our two scenarios and explain the mathematical intuition behind why we can (in some cases) treat the data as if it was the product of experimental manipulation.
+Instead of a high-level general but abstract explanation, the following will guide you through a mathematical example of how to obtain a \textit{maximum likelihood estimate} (MLE) of the causal effect in our two scenarios.
+In doing so, we explain the mathematical intuition behind why we can (in some cases) treat the data as if it was the product of experimental manipulation.
 
-\subsection{MLE for Scenario 1: gender as confound}
+\paragraph{MLE for Scenario 1: gender as confound.}
 
-The key to understanding the \docalc is to think of a "virtual intervention" as a thought experiment: how would the causal relations be if we had actually intervened on the relevant variable?
+The key to understanding the \docalc is to think of a ``virtual intervention'' as a thought experiment: how would the causal relations be if we had actually intervened on the relevant variable?
 In this imagined scenario, we would have seen data generated by a joint probability distribution $\Palt$ over all relevant variables.
 Of course, the actual data we have is \textit{not} a sample from $\Palt$, but rather from a joint probability distribution $P$, which follows the dependencies of the assumed cDAG.
 So, we would like to use the data, which actually comes from $P$, to estimate ---if possible--- aspects of $\Palt$.
@@ -816,7 +791,7 @@ According to these point-valued estimates, patients who take the drug approximat
 To get the causal effect estimate, we simply have to compare the predicted outcome for patients taking the drug with those refusing it.
 The estimated causal effect of \textsc{drug intake} on \textsc{recovery} is thus $P(R=1\mid \mathdo(D=\textsc{take})-P(R=1\mid \mathdo(D=\textsc{refuse}) \approx 0.05$, meaning that the drug increases the chance of patients to recover by 5\%.
 
-\subsection{MLE for Scenario 2: blood pressure as mediator}
+\paragraph{MLE for Scenario 2: blood pressure as mediator.}
 
 In scenario 2, the independent variable $D$ is not causally dependent on any other RV.
 The \doop, whose job it is to remove causal influences on the independent variable, thus doesn't have an effect in this case, because there aren't any causal influences on $D$ to begin with.
@@ -1289,6 +1264,58 @@ Despite that, the outcomes were different: even though both causal effects were 
 This illustrates the importance of choosing the correct causal structure. 
 Going beyond our hypothetical scenarios, we showed that the \docalc can, in some scenarios, be used to estimate causal effects, even if the data at hand stems from observational studies.
 To estimate the causal effects, both frequentist (MLE) and Bayesian methods yield similar results, however, only with the Bayesian approach do we get a measure of certainty for our results.
+
+\begin{InfoBox}
+\centering
+\colorbox{mygray}{
+  \centering
+  \begin{minipage}{1\textwidth}
+    \medskip
+
+    \emph{The Neyman-Rubin Causal Model / potential outcome framework}
+    \medskip
+
+    The Neyman-Rubin causal model is based on the framework of potential outcomes that a treatment would have on an individual.
+    As an example, let's consider going to college as the treatment, and future income as the outcome of interest.
+    The causal effect of going to college on the individual's future income is defined as the difference between the income with and without a college degree.
+    This notion of causal effect is a hypothetical measure, as the potential outcomes are counterfactual and only one of them can be observed.
+    Importantly, the potential outcomes are treated as fixed quantities and not random variables.
+    This is different from \docalc, where the outcomes are also stochastic, and the assignment of treatment is fixed/deterministic.
+    The only stochastic process in the Neyman-Rubin causal model is the assignment of treatment, which depends on the observable characteristics $X$.
+    These could, for example, be high school grades, socio-economic background or gender.
+    Because the potential outcomes are fixed, any two individuals who share the same set of characteristics $X$ have the same potential outcomes.
+    This can be leveraged to compute the causal effect.
+    For each combination of values $X$ can take, the income of individuals who went to college can be compared with that of those who didn't.
+    This procedure is called matching.
+    Because it is in most cases not easy to find individuals with exactly matching values of $X$, especially for continuous variables, there are different proposed matching methods \citep{sekhon2008neyman}.
+
+    \medskip
+
+    \emph{Structural Equation Modeling}
+    \medskip
+
+    A structural equation model (SEM) is a causal model that combines observable and latent variables.
+    The causal connections between variables are represented with equations and treated as a-priori.
+    SEMs can also be represented graphically in path diagrams.
+    A path diagram is not the same as a cDAG, because it is not acyclic and can involve feedback relations. However, in this case, the model is underidentified and non-testable.
+    The goal of a SEM is to estimate the values of latent variables from the measured values of the observable variables.
+    SEMs can be evaluated with measures of model fit.
+    In case of a bad fit, the causal assumptions underlying model formulation can be regarded as falsified \citep{bollen2013eight}.
+
+    It has been shown that the potential outcome framework and structural equation modeling are logically equivalent \citep{galles1998axiomatic, halpern2000axiomatizing}.
+    \citet{pearl2000models} combined features of the potential outcome framework and SEM to formulate the structural causal model as a general theory of causation.
+
+    \medskip
+
+
+  \end{minipage}
+}
+\begin{center}
+Info Box 1: Alternatives to the \docalc for causal inference.
+\end{center}
+\end{InfoBox}
+
+
 
 \printbibliography[heading=bibintoc]
 

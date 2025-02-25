@@ -174,7 +174,7 @@
 
 \begin{abstract}
 \noindent 
-This tutorial provides (i) a first general introduction to causal inference with the \docalc, as introduced in the work of Judea Pearl, and (ii) a hands-on programming example R for an artificial data set instantiating \emph{Simpson's paradox}, showcasing the use of Bayesian regression modeling to obtain causal effect estimates with quantified uncertainty.
+This tutorial provides a first general introduction to causal inference with the \docalc, as introduced in the work of Judea Pearl and a hands-on programming example in R for an artificial data set instantiating \emph{Simpson's paradox}, showcasing the use of Bayesian regression modeling to obtain causal effect estimates with quantified uncertainty.
 \end{abstract}
 
 \section{Motivation \& intended audience}
@@ -193,22 +193,20 @@ CORRELATION DOES NOT IMPLY CAUSATION!
 In scientific education, this is often one of the first lessons in statistics. 
 We are told, time and again, that we should be weary of interpreting data collected by observation. 
 If we want to establish a causal relationship, we are taught that there is one gold standard: the randomized experiment.
-However, there are severe limitations to the randomized experiment framework.
-\marginnote[-2.15cm]{The decision of which variables should be included in a regression model (good controls) and which should not be (bad controls) arguably requires reasoning about the likely causal data-generating process, and it can be facilitated by visual representation through cDAGs of the kind introduced below \citep{CinelliForney2022:A-Crash-Course-}.}
+However, it may not always be possible to collect data from a randomized and controlled experiment.
 For some research, randomized experiments are too expensive, too unethical, or downright impossible. 
-Maybe we have old data and don't know how it was obtained. 
-Even if we are able to perform a randomized experiment, the independent variables we investigate might not be independent from each other.
-What are we to do in these cases?
+Maybe we only have data from previous research and we don't know even know exactly how exactly it was obtained.
+Even if we are able to perform a randomized experiment, the decision of which variables should be included in, say, regression analysis (good controls) and which should not be (bad controls) arguably requires reasoning about the likely causal data-generating process, and it can be facilitated by an explicit representation of a causal model of the kind introduced below \citep{CinelliForney2022:A-Crash-Course-}.
 
+\marginnote[2.5cm]{While this tutorial is not concerned with historical background or direct comparison of the \docalc to other approaches, Info Box~2 at the end of this tutorial briefly describes prominent alternatives, namely the \textit{potential outcomes framework} and \textit{structural equation modeling}. The information from Info Box~2 is not required for the remainder of the tutorial.}
 There are multiple methods to estimate causal effects from any given data set, irrespective of whether it was obtained by experimental manipulation or not.
-\marginnote[-2.5cm]{While this tutorial is not concerned with historical background or direct comparison of the \docalc to other approaches, Info Box~2 at the end of this tutorial briefly describes prominent alternatives, namely the \textit{potential outcomes framework} and \textit{structural equation modeling}. The information from Info Box~2 is not required for the remainder of the tutorial.}
 This tutorial covers one of them: the \docalc.
 
 The process of causal effect estimation using the \docalc, as introduced in this tutorial, is illustrated in Figure~\ref{fig:flow-chart}.
-Based on our data and research goals, we explicate our assumptions about the relevant causal variables and causal processes that are likely involved in the data-generating process.
-Using the \docalc we derive a formula for calculating the causal effect we are interested in.
+Based on our data and research goals, we use a \textit{causal model} to explicate our assumptions about the relevant causal variables and causal processes that are likely involved in the data-generating process.
+Using the \docalc we derive a \emph{causal effect formula} for calculating the causal effect we are interested in.
 To estimate the probabilities necessary for computing the causal effect, we use our data and (Bayesian) regression modeling.
-In a final step, we use the formula for our causal effect and the usual sampling-based uncertainty calculation familiar from Bayesian data analysis to obtain a causal effect estimate with quantified uncertainty.
+In a final step, we use the causal effect formula and the usual sampling-based uncertainty calculation familiar from Bayesian data analysis to obtain a causal effect estimate with quantified uncertainty.
 
 \begin{figure*}[t]
   \centering
@@ -239,7 +237,7 @@ In a final step, we use the formula for our causal effect and the usual sampling
       \node[draw=black, fill=BackgroundR, below of = hypothesis, node distance = 3cm] (data) {Data (observational or experimental)};
       % causal inference
       \node[draw=black, fill=BackgroundR, right of = hypothesis] (cdag) {Causal model (cDAG)};
-      \node[draw=black, fill=BackgroundR, right of = cdag] (ce) {Formula for causal effect};
+      \node[draw=black, fill=BackgroundR, right of = cdag] (ce) {Causal effect formula};
       % Bayesian data analysis
       \node[draw=black, fill=BackgroundR, right of = data] (bda) {Regression models};
       \node[draw=black, fill=BackgroundR, right of = bda] (result) {CE estimate w/ uncertainty};
@@ -260,27 +258,26 @@ In a final step, we use the formula for our causal effect and the usual sampling
 \end{figure*}
 
 The tutorial is structured as follows.
-Section~3 introduces a fictitious data set that will serve as our running example for this tutorial.
+Section~\ref{sec:experiment} introduces a fictitious data set that will serve as our running example for this tutorial.
 The data set instantiates a case of \textit{Simpson's paradox}.
-In Section~4, the theoretical background to the \docalc is explained and we use a maximum-likelihood approach to estimate the relevant causal effects for our running example.
-Finally, Section~5 guides you through the practical application of the \docalc in a Bayesian regression modeling framework. 
+In Section~\ref{sec:theory}, the theoretical background to the \docalc is explained and we use a maximum-likelihood approach to estimate the relevant causal effects for our running example.
+Finally, Section~\ref{sec:programming} explains how we can obtain estimates of causal effects with quantified uncertainty from Bayesian regression models.
 
 
 
 \section{Fictitious data \& Simpson's paradox}\label{sec:experiment}
 
-To guide you through the steps of estimating causal effects with the \docalc, we'll look at a concrete numerical example (see Table~\ref{tab:anonymous}).
+To guide you through the steps of estimating causal effects with the \docalc, we'll look at a concrete numerical example.
 Let's assume that we work in a hospital and want to test the effect of a new drug. 
-Because this drug is still in an experimental phase, we can't randomly assign it to patients. 
+For some reason or other, we cannot simply administer the drug randomly to patients.
 Instead, we ask them if they would be willing to test the drug.
-In our experiment, we have a random variable (RV) \textsc{drug intake} with two possible values: \textsc{take} for the participants consenting to test the drug and \textsc{refuse} for those who declined. 
+In our experiment, we have a random variable (RV) \textsc{drug intake} with two possible values: \textsc{take}, or numerical value $1$, for the participants consenting to test the drug and \textsc{refuse}, or numerical value $0$, for those who declined.
 The patients are also sorted into two groups (more on the nature of these groups below).
+The concrete numerical data we will work with are shown in Table~\ref{tab:anonymous}.
 
 
-\begin{margintable}[-6cm]
+\begin{margintable}
   \centering
-  \caption{Recovery rates after refusing or taking the drug}
-  \label{tab:anonymous}
   \begin{tblr}{crcrc}
     \hline
     & \SetCell[c=2]{c} \textsc{refuse}&&\SetCell[c=2]{c}\textsc{take}\\
@@ -290,14 +287,16 @@ The patients are also sorted into two groups (more on the nature of these groups
     $\Sigma$& $\frac{289}{350}$ & (\textcolor{DarkGreen}{83\%}) & $\frac{273}{350}$ & (\textcolor{DarkOrange}{78\%})\\
     \hline
   \end{tblr}
+  \caption{Recovery rates after refusing or taking the drug}
+  \label{tab:anonymous}
 \end{margintable}
 
-\marginnote[-0.5cm]{The distribution of recovery rates is taken from a real-life medical study \citep{charig1986comparison} and was first discussed in relation to Simpson's Paradox by \citet{julious1994confounding}. The hypothetical experimental setup and the labels of the RVs come from \citet{pearl2000models}.}
+\marginnote{The distribution of recovery rates is taken from a real-life medical study \citep{charig1986comparison} and was first discussed in relation to Simpson's Paradox by \citet{julious1994confounding}. The hypothetical experimental setup and the labels of the RVs come from \citet{pearl2000models}.}
 
-In Table~\ref{tab:anonymous}, we can see the results of our study.
-We see that overall, 83\% of patients who refused the drug recovered from their disease, while only 78\% of the drug-takers did. 
+How are we to interpret the data in Table~\ref{tab:anonymous} regarding the research question of whether the drug was effective, i.e., whether the rate of recovery increased when taking it?
+On the one hand, we see that overall, 83\% of patients who refused the drug recovered from their disease, while only 78\% of the drug-takers did.
 This does not bode well for our drug.
-However, when we look at each group in isolation, we see that within each group, the drug-takers had a slightly higher recovery rate.
+However, on the other hand, when we look at each group in isolation, we see that within each group, the drug-takers had a slightly higher recovery rate.
 This phenomenon is an instance of \textit{Simpson's Paradox}: Splitting the participants into sub-groups yields different results compared to analyzing all data at once.
 This makes the interpretation of our results very difficult: should we use the group-wise results and conclude that the drug is helpful, or should we use the overall results which indicate that the drug is harmful? 
 Without further information, specifically on how the groups were formed, we can't take this decision.
@@ -311,15 +310,14 @@ In the first scenario, the participants were grouped by gender (which is treated
 \textsc{gender} could be relevant because the drug might have different effects on the male and female body. 
 However, \textsc{gender} might also influence the decision to take the drug, e.g., by one gender being more risk averse than the other. 
 With the updated group names, the results are displayed in Table \ref{tab:combined}~(a).
-How should we interpret these results?\footnote{The correct answer would, of course, be `not at all' - We haven't done our causal analysis yet, this pattern is merely a correlation.}
-Our intuition might be that the drug is in fact beneficial, because for men and women, the chances of recovery are higher for those who took the drug.
+A common intuition is that the drug is likely beneficial, because for men and women alike, the chances of recovery are higher for those who took the drug.
 
 
 Table~\ref{tab:combined}~(b) shows a second scenario for the same numerical values.
 Here, the participants were not grouped by gender, but by their blood pressure as measured \textit{after} taking the drug.
 Participants are divided into groups with high or low blood pressure. 
 In this case, our intuition is likely different. 
-Because blood pressure is measured after drug administration and is likely to be influenced by the drug, it seems that the groupings into \textsc{high} and \textsc{low} are not as informative, and we should instead focus on the overall results, that tell us that the drug might even be harmful.
+Because blood pressure is measured after drug administration and is possibly influenced by the drug, it seems that the groupings into \textsc{high} and \textsc{low} are not as informative, and we should instead focus on the overall results, that tell us that the drug might even be harmful.
 
 
 \begin{table*}[t]
@@ -368,10 +366,122 @@ Because blood pressure is measured after drug administration and is likely to be
 
 
   \label{tab:combined}
-  \caption{Changing the group names changes our intuitions about the causal effect}
+  \caption{Changing the group names changes our intuitions about the causal effect.}
 
 \end{table*}
 
+
+
+
+\section{Causal inference with the \docalc} \label{sec:theory}
+
+The previous considerations suggest that our intuitions about the correct conclusions to be drawn from experimental data rely on intuitive knowledge of the likely causal role of the relevant measured quantities.
+The first step of causal inference is therefore to make such intuitive knowledge explicit (shareable, transparent, open to constructive criticism), e.g., in a formal \textit{causal model}, a version of which is introduced in Section~\ref{sec:causal-models}.
+The next step is to determine, based on a causal model, what the effects of \textit{intervening} on a variable would be, as described in Section~\ref{sec:intervention}.
+This allows us to specify a formula with which to calculate a notion of causal effect (Section~\ref{sec:causal-effect-formula}), which we can then estimate from the data (Section~\ref{sec:causal-effect}).
+
+
+
+\subsection{Causal models} \label{sec:causal-models}
+
+Why do we interpret the data from our two scenarios differently, even though the numbers are exactly the same?
+It is because the data is not the only information we have: We also know how this data was obtained and how the variables are most likely related. 
+We know that \textsc{gender} ($G$) might have an influence on the decision of \textsc{drug intake} ($D$), while the taking of the drug doesn't change one's gender.
+In the case of \textsc{blood pressure} ($B$), we know that it was measured after taking or refusing the drug.
+It therefore shouldn't have influenced the decision to take the drug.
+However, it is possible that the drug has an influence on blood pressure.
+In both cases, we hypothesize that the drug may have an effect on the patients' \textsc{recovery} ($R$).
+Before starting with our analysis, we should make these causal relationships explicit.
+
+\begin{marginfigure}
+
+  \centering
+
+  \begin{tikzpicture}[
+    node distance = 1.25cm,
+    double distance = 2pt,
+    minimum size=0.75cm,
+    circle,
+    thick]
+    % NODES
+    % anchor
+    \node[] (anchor) {};
+    % node X
+    \node[draw=black, left of = anchor] (D) {$D$};
+    % node Y
+    \node[draw=black, right of = anchor] (R) {$R$};
+    % node Z
+    \node[draw=black, above of = anchor] (G) {$G$};
+    % caption node
+    \node[below of = anchor, align = left, node distance = 0.9cm] (Cap) {cDAG for Scenario 1: \\Gender as confound};
+
+    % ARROWS
+    \draw[->] (G)--(D);
+    \draw[->] (G)--(R);
+    \draw[->] (D)--(R);
+  \end{tikzpicture}
+  %
+  \\ \vspace{-0.5cm}
+  %
+  \begin{tikzpicture}[
+    node distance = 1.25cm,
+    double distance = 2pt,
+    minimum size=0.75cm,
+    circle,
+    thick]
+    % NODES
+    % anchor
+    \node[] (anchor) {};
+    % node X
+    \node[draw=black, left of = anchor] (D) {$D$};
+    % node Y
+    \node[draw=black, right of = anchor] (R) {$R$};
+    % node Z
+    \node[draw=black, below of = anchor] (B) {$B$};
+    % caption node
+    \node[below of = B, align = left, node distance = 0.9cm] (Cap) {cDAG for Scenario 2: \\Blood pressure as mediator};
+
+    % ARROWS
+    \draw[->] (D)--(B);
+    \draw[->] (B)--(R);
+    \draw[->] (D)--(R);
+  \end{tikzpicture}
+  %
+  \vspace{-1.0cm}
+  %
+  \caption{Different cDAGs capture our intuitions for different causal roles in the two scenarios.}
+  \label{fig:cDAGs-initial}
+\end{marginfigure}
+
+One way to make intuitions about causal dependency explicit, is to represent then in a causal model, such as \textit{causal directed acyclic graph} (cDAG).
+The nodes in a cDAG represent events, measurements or variables relevant for our data analysis.
+We draw an arrow from one node to another to mark the assumption the former is a direct cause of the latter.
+The precise details of cDAGs, their relation to causality and stochastic (in-)dependence, are important for advanced applications of causal inference with the \docalc.
+As the motivation for this tutorial is to provide a first conceptual feeling of what can be done in this framework, Info Box~1 covers only some of the basics of causal models in a non-technical way.
+
+Figure~\ref{fig:cDAGs-initial} shows the two cDAGs that capture the most common intuitions about causal relations for the two scenarios of Simpson's paradox.
+These causal models are considered \textit{a-priori} assumptions about all the relations of direct causation about the variables involved.
+\marginnote[-2cm]{The idea of prior knowledge influencing the analysis is familiar to Bayesians.
+However, there is one difference: in Bayesian statistics, the influence of the prior over model parameters decreases as the size of the observed data increases.
+The \textit{a-priori} causal assumption always influence the outcome.}
+Of course, this approach bears some risks.
+If we assume the wrong causal relationships, our resulting analysis will also yield wrong results.
+However, it is important to note that this is the case for all statistical inference methods.
+Any decision on including or excluding a certain variable from statistical analysis is implicitly an assumption about the causal structure connecting the RVs.
+Formulating a specific cDAG can thus improve accountability by making the underlying assumptions explicit and easily understandable.
+
+\marginnote{\emph{"All causal inferences based on statistical models are implicitly based on a causal structure"} \citep{shrier2008reducing}}
+The construction of a causal model and the question of which variables to include are challenging tasks, especially because in many application cases, the causal structures under observation will be much more complicated than the limited ones given here.
+In many cases, it might be impossible to decide between two possible cDAGs.
+In these instances, \citet{shrier2008reducing} suggest to perform the analyses on all plausible versions of the DAG.
+If the different versions yield different results, all results should be presented. 
+In their words: 
+\marginnote{From a Bayesian point of view, we can also assign a prior probability to all candidate cDAGs and present, in addition to the estimates of causal effects for each case, a prior-weighted average, similar to other cases of model averaging in Bayesian analysis.}
+\begin{quote}
+  \emph{Not using the causal approach because of uncertainty on which is the correct DAG simply means that one is allowing chance rather than rational deliberation to make the choice among the different causal diagrams.}
+\end{quote}
+
+Once we have settled on one (or several) causal models, the base for our causal analysis is set, and we can continue with the second step: the intervention.
 
 \begin{InfoBox}
 \centering
@@ -472,137 +582,21 @@ Info Box 2: Background on visually displaying causal relationships.
 \end{InfoBox}
 
 
-\section{Causal inference with the \docalc} \label{sec:theory}
 
-The previous considerations suggest that our intuitions about the correct conclusions to be drawn from experimental data rely on intuitive knowledge of the likely causal role of the relevant measured quantities.
-The first step of causal inference is therefore to make such intuitive knowledge explicit (shareable, transparent, open to constructive criticism), e.g., in a formal structure \textit{causal models}, a version of which is introduced in Section~\ref{sec:step1}.
-The next step is to determine, based on the concrete formalized assumptions of the data-generating causal process in a given causal model, what the effects of \textit{intervening} on a variable would be, as described in Section~\ref{sec:step2}.
-This allows us to specify a formula with which to calculate a notion of (average) causal effect (Section~\ref{sec:step3}), which we can then estimate based on the extant observational data, in a final fourth step (Section~\ref{sec:step4}).
-
-
-
-\subsection{Step 1: Establish the Causal Structure} \label{sec:step1}
-
-
-Why do we interpret the data from our two scenarios differently, even though the numbers are exactly the same?
-It is because the data is not the only information we have: We also know how this data was obtained and how the variables are most likely related. 
-These observations, although not present in the data, still inform our intuitive judgement of the situation.
-We know that \textsc{gender} ($G$) might have an influence on the decision of \textsc{drug intake} ($D$), while the taking of the drug doesn't change ones gender.
-In the case of \textsc{blood pressure} ($B$), we know that it was measured after taking or refusing the drug.
-It therefore shouldn't have influenced the decision to take the drug.
-However, it is possible that the drug has an influence on blood pressure.
-In both cases, we hypothesize that the drug may have an effect on the patients' \textsc{recovery} ($R$).
-Before starting with our analysis, we should make these causal relationships explicit.
-
-\begin{marginfigure}
-
-  \centering
-
-  \begin{tikzpicture}[
-    node distance = 1.25cm,
-    double distance = 2pt,
-    minimum size=0.75cm,
-    circle,
-    thick]
-    % NODES
-    % anchor
-    \node[] (anchor) {};
-    % node X
-    \node[draw=black, left of = anchor] (D) {$D$};
-    % node Y
-    \node[draw=black, right of = anchor] (R) {$R$};
-    % node Z
-    \node[draw=black, above of = anchor] (G) {$G$};
-    % caption node
-    \node[below of = anchor, align = left, node distance = 0.9cm] (Cap) {cDAG for Scenario 1: \\Gender as confound};
-
-    % ARROWS
-    \draw[->] (G)--(D);
-    \draw[->] (G)--(R);
-    \draw[->, dashed] (D)--(R);
-  \end{tikzpicture}
-  %
-  \\ \vspace{-0.5cm}
-  %
-  \begin{tikzpicture}[
-    node distance = 1.25cm,
-    double distance = 2pt,
-    minimum size=0.75cm,
-    circle,
-    thick]
-    % NODES
-    % anchor
-    \node[] (anchor) {};
-    % node X
-    \node[draw=black, left of = anchor] (D) {$D$};
-    % node Y
-    \node[draw=black, right of = anchor] (R) {$R$};
-    % node Z
-    \node[draw=black, below of = anchor] (B) {$B$};
-    % caption node
-    \node[below of = B, align = left, node distance = 0.9cm] (Cap) {cDAG for Scenario 2: \\Blood pressure as mediator};
-
-    % ARROWS
-    \draw[->] (D)--(B);
-    \draw[->] (B)--(R);
-    \draw[->, dashed] (D)--(R);
-  \end{tikzpicture}
-  %
-  \vspace{-1.0cm}
-  %
-  \caption{Different cDAGs capture our intuitions for different causal roles in the two scenarios.}
-  \label{fig:cDAGs-initial}
-\end{marginfigure}
-
-
-
-One way to make intuitions about causal dependency explicit, is to illustrate them in a so-called \textit{causal directed acyclic graph} (cDAG).
-The nodes in a cDAG represent events, measurements or random variables relevant for our data analysis.
-We draw an arrow from one node to another if we think that, simply speaking, the former may have a causal effect on the latter.
-The precise details of cDAGs, their relation to causality and stochastic (in-)dependence, are important for advanced applications of causal inference with the \docalc.
-As the motivation for this tutorial is to provide a first conceptual feeling of what can be done in this framework, Info Box~2 covers only some of the basics in a non-technical way.
-
-In the cDAGs for our scenarios, which are drawn on the right side on this page, the causal connection between \textsc{drug intake} and \textsc{recovery} is drawn with a dashed arrow.
-This indicates that the causal relationship between $D$ and $R$ is not yet established, but currently the subject of investigation.
-All other connections in the graph are treated as factual.
-\marginnote[-2cm]{The idea of prior knowledge influencing the analysis is familiar to Bayesians.
-However, there is one difference: in Bayesian statistics, the influence of the prior over model parameters decreases as the size of the observed data increases.
-The \textit{a-priori} causal assumption always influence the outcome.}
-They are considered \textit{a-priori} assumptions. 
-Of course, this approach bears some risks.
-If we assume the wrong causal relationships, our resulting analysis will also yield wrong results.
-However, it is important to note that this is the case for all statistical inference methods.
-Any decision on including or excluding a certain variable from statistical analysis is implicitly an assumption about the causal structure connecting the RVs.
-Formulating a specific cDAG can thus improve accountability by making the underlying assumptions explicit and easily understandable.
-
-\marginnote{\emph{"All causal inferences based on statistical models are implicitly based on a causal structure"} \citep{shrier2008reducing}}
-The construction of a cDAG and the question of which variables to include are challenging tasks, especially because in many application cases, the causal structures under observation will be much more complicated than the limited ones given here.
-In many cases, it might be impossible to decide between two possible cDAGs.
-In these instances, \citet{shrier2008reducing} suggest to perform the analyses on all plausible versions of the DAG.
-If the different versions yield different results, all results should be presented. 
-In their words: 
-\marginnote{From a Bayesian point of view, we can also assign a prior probability to all candidate cDAGs and present, in addition to the estimates of causal effects for each case, a prior-weighted average, similar to other cases of model averaging in Bayesian analysis.}
-\begin{quote}
-\emph{
-Not using the causal approach because of uncertainty on which is the correct DAG simply means that one is allowing chance rather than rational deliberation to make the choice among the different causal diagrams.    
-}
-\end{quote}
-
-Once we have settled on one (or several) cDAGs, the base for our causal analysis is set, and we can continue with the second step: the intervention.
-
-
-\subsection{Step 2: Intervene} \label{sec:step2}
+\subsection{Intervention} \label{sec:intervention}
 
 The key to inferring causation is intervention.
 This is what constitutes the power of the controlled randomized trial setup (if done well) in experimental research.
 But what if we cannot, for whatever reason, interfere in the data-generating process?
-Is it possible to simulate an intervention for data that is already generated?
+In that case, we can use our causal model to calculate the effects of a ``simulated intervention'' (this section), which we can use to define how to calculate the causal effect of interest (the next Section~\ref{sec:causal-effect-formula}).
+Then, as Pearl has argued prominently, it may be possible to calculate the effects of simulated interventions (and thereby the relevant causal effect) from empirical data from processes that did not involve this intervention (Section~\ref{sec:causal-effect})
 
-\marginnote{"When we merely observe the value that a variable takes, we are learning about the value of the variable when it is caused in the normal way, as represented in our causal model. 
-Information about the value of the variable will also provide us with information about its causes, and about other effects of those causes. 
-However, when we intervene, we override the normal causal structure, forcing a variable to take a value it might not have taken if the system were left alone" \citep{sep-causal-models}.}
 
-Indeed, as Pearl has argued prominently, simulated intervention on a random variable, so to speak, is possible in some cases (but not always). 
+
+% \marginnote{"When we merely observe the value that a variable takes, we are learning about the value of the variable when it is caused in the normal way, as represented in our causal model.
+% Information about the value of the variable will also provide us with information about its causes, and about other effects of those causes.
+% However, when we intervene, we override the normal causal structure, forcing a variable to take a value it might not have taken if the system were left alone" \citep{sep-causal-models}.}
+
 When we simulate an intervention, we do \textit{as if} we had manipulated the relevant variable, which means that we cut off all influence from upstream causes of that variable, thus possibly creating a modified (pruned, lesioned) cDAG.
 We then use the data to estimate the effect that different values of the relevant variable have in this modified cDAG.
 In our running example, we want to vary the variable \textsc{drug intake} ($D$), to measure the effects this has on \textsc{recovery} ($R$).
@@ -610,10 +604,11 @@ The causal effect of the drug can be estimated by \textit{pretending} that the e
 In this fictitious scenario, $D$ is the result of random manipulation and thus has no causal ancestors.
 
 Handling such simulated interventions is the main job description of the \docalc. 
-Instead of overwriting the value of a RV by randomization, we can do it via the \doop.
-In the \doop $\mathdo(D=d)$, we set $D$ to a fixed value $d \in \{0,1\}$.\footnote{The assigned value need not be binary, this is only the case in our experiment where one can either take ($D=1$) the drug or else refuse it ($D=0$).}
+The \docalc introduces a new operator, the \doop.
+We can now write \doop $\mathdo(D=d)$ to mean that we set the variable $D$ to a fixed value $d \in \{0,1\}$ by intervention.
+\marginnote{In the general case, it is also possible to intervene on continuous variables that can take infinitely many values.}
 Because the intervention overwrites the normal causal structure, the \doop removes any causal influences on $D$.
-In the graphical representation, this means that we can remove any incoming arrows on the independent RV.
+In the graphical representation, this means that we can remove any incoming arrows for the variable that we intervene on.
 In the cDAG for Scenario 1, $\mathdo(D=d)$ leads to the removal of the causal influence of $G$ on $D$.
 In Scenario 2, the \doop has no effect at all, because there were no incoming arrows on $D$ to begin with.
 This is illustrated in the updated cDAGs in Figure~\ref{fig:cDAGs-pruned}.
@@ -640,7 +635,7 @@ This is illustrated in the updated cDAGs in Figure~\ref{fig:cDAGs-pruned}.
 
     % ARROWS
     \draw[->] (G)--(R);
-    \draw[->, dashed] (D)--(R);
+    \draw[->] (D)--(R);
   \end{tikzpicture}
   \\
   \vspace{-0.5cm}
@@ -665,65 +660,65 @@ This is illustrated in the updated cDAGs in Figure~\ref{fig:cDAGs-pruned}.
     % ARROWS
     \draw[->] (D)--(B);
     \draw[->] (B)--(R);
-    \draw[->, dashed] (D)--(R);
+    \draw[->] (D)--(R);
   \end{tikzpicture}
   \vspace{-1cm}
   \caption{Intervening on a variable in a cDAG amounts to removing all influence from any causally upstream variable.}
   \label{fig:cDAGs-pruned}
 \end{marginfigure}
 
-Let's pause here for a second and reflect on this.
+Let's pause here for a second and reflect.
 We want to mimic the effects of something like an experimental intervention in a randomized control trial.
 The main property that makes such experimental manipulation effective is that the relevant variable (here: $D$) was not allowed to just happen, so to speak.
-Some god-like external force (the experimenters) messed up the normal causal flow, interrupted it and just set the variable to whatever they liked, no matter how likely it might have happened on its own had we not intervened on the normal courses of events.
-That is, essentially, the main property that makes experimental manipulation work.
+Some god-like external force (the experimenters) messed up the normal causal flow, interrupted it and just set the variable to whatever they liked, no matter how likely it might have happened on its own had they not intervened on the normal courses of events.
+That is, essentially, the main property that makes experimental manipulation potentially informative about causation.
 And it is exactly this (cutting off the prior causal influences on the relevant variable ($D$)) that the \docalc implements.
 In other words, the \docalc is not some crazy math-voodoo but the most straightforward implementation of what we intuitively consider to be (the power of) systematic experimental manipulation.
 
-\subsection{Step 3: Define the causal effect} \label{sec:step3}
+\subsection{Causal effect formula} \label{sec:causal-effect-formula}
 
 Given an explicit causal model and a way to represent the idea of an intervention on a variable, we can define what we mean when we speak of a \textit{causal effect}.
-Actually, the term ``causal effect'' does not have a clear and crisp intuitive meaning, and it probably refers to a nebulous cluster of related elusive concepts.
+Actually, the term ``causal effect'' does not have a single, clear and crisp intuitive meaning.
 However, with cDAGs and the \docalc, we can clearly and formally define a number of notions of causal effects.
-Here we focus on the most salient starting point.
+Here we focus on the most salient notion.
 The \textit{average causal effect} of variable $X$ on variable $Y$ is the expected amount of increase of $Y$ given that $X$ is changed (by intervention).
-More concretely, for the case of two binary variable such as recovery $R$ and drug use $D$, the average causal effect describes the increase in the probability of recovery $R = 1$ when going from $\mathdo(D=0)$ to $\mathdo(D=1)$, i.e., going from a situation where we intervened so that the drug was \textit{not} given to a situation where we intervened so that the drug \textit{was} given.
+More concretely, for the case of two binary variable such as recovery $R$ and drug use $D$, the average causal effect describes the increase in the probability of recovery $P(R = 1)$ when going from $\mathdo(D=0)$ to $\mathdo(D=1)$, i.e., going from a situation where we intervened so that the drug was \textit{not} given to a situation where we intervened so that the drug \textit{was} given.
 In a formula, the average causal effect for our running example is:
 \begin{align*}
-  \mathrm{Avg-CE}(P \mid D) = & \ P(R=1 \mid \mathdo(D=1)) \  -
+  \text{Avg-CE}(P \mid D) = & \ P(R=1 \mid \mathdo(D=1)) \  -
                         \\ & \ P(R=1 \mid \mathdo(D=0))
 \end{align*}
 
 
-\subsection{Step 4: Compute the causal effect (if possible)} \label{sec:step4}
+\subsection{Causal effect estimation} \label{sec:causal-effect}
 
 After defining the causal model to work with and the causal effect of interest, the real challenge arises, namely to calculate the causal effect, if possible, for the given data at hand.
 This raises deep conceptual questions:
 How do we get from virtual interventions to a causal effect estimation?
-And why are we allowed to pretend that an intervention has happened, when the data we have are obtained from a completely different causal structure?
-Instead of a high-level general but abstract explanation, the following will guide you through a mathematical example of how to obtain a \textit{maximum likelihood estimate} (MLE) of the causal effect in our two scenarios.
+And why are we allowed to pretend that an intervention has happened, when the data we have are obtained from a causal process without intervention?
+Instead of a general but abstract explanation, the following explores one concrete example of how to obtain a \textit{maximum likelihood estimate} (MLE) of the causal effect in our two scenarios.
 In doing so, we explain the mathematical intuition behind why we can (in some cases) treat the data as if it was the product of experimental manipulation.
+We look at each scenario in turn.
 
 \paragraph{MLE for Scenario 1: gender as confound.}
 
-The key to understanding the \docalc is to think of a ``virtual intervention'' as a thought experiment: how would the causal relations be if we had actually intervened on the relevant variable?
+As described above, the key to understanding the \docalc is to think of a ``simulated intervention'' as a thought experiment: how would the causal relations be if we had actually intervened on the relevant variable?
 In this imagined scenario, we would have seen data generated by a joint probability distribution $\Palt$ over all relevant variables.
 Of course, the actual data we have is \textit{not} a sample from $\Palt$, but rather from a joint probability distribution $P$, which follows the dependencies of the assumed cDAG.
 So, we would like to use the data, which actually comes from $P$, to estimate ---if possible--- aspects of $\Palt$.
 As we said before, sometimes this cannot possibly work; but sometimes it can.
 Here is an example of the latter.
 
-Suppose we have data as in Table \ref{tab:combined}, which we assume is generated from joint probability distribution $P$.
+Suppose we have data from scenario 1 as in Table \ref{tab:combined}a, which we assume is generated from joint probability distribution $P$.
 In the cDAG that (by our working assumption) underlies $P$, variable $D$ was merely observed, not manipulated.
 However, we can imagine a case where the joint probability distribution on variables follows $\Palt$ instead, where $D$ was actually experimentally manipulated, so that all upstream causal influences are suppressed.
 We now introduce a new piece of notation to write $P\left(R=r \mid \mathdo(D=d)\right)$ for the conditional probability of recovery $R$ given that the drug administration $D$ had been manipulated.
 In effect, the conditional probability $P\left(R=r \mid \mathdo(D=d)\right)$ with an imaginary intervention is defined as the conditional probability $\Palt \left(R = r \mid D=d \right)$ under the unobserved probabilities $\Palt$. 
 You can think of the \doop as a kind of jumping board to get from the actual probability distribution $P$ to the imagined $\Palt$.
-However, this "fictitious" conditional probability cannot be calculated based on $P$ without further ado, because it assumes that the data-generating process was a different one, namely one that follows the joint distribution $\Palt$.
+However, this "fictitious" conditional probability cannot always be calculated based on $P$ without further ado, because it assumes that the data-generating process was a different one, namely one that follows the joint distribution $\Palt$.
 This makes the \doop seem kind of pointless, like notation juggling or just some renaming trick.
-But, the good news is that in some cases, the data obtained from process $P$ can be used to safely estimate all the relevant aspects of $\Palt$, so that we can eventually estimate the desired $P\left(R=r \mid \mathdo(D=d)\right)$ entirely from the non-interventionist data at hand. 
+But the good news is that, in some cases, the data obtained from process $P$ can be used to safely estimate all the relevant aspects of $\Palt$, so that we can eventually estimate the desired $P\left(R=r \mid \mathdo(D=d)\right)$ entirely from the non-interventionist data at hand.
 
-How does this work? 
 As motivated above, by definition we have:
 %
 \begin{align*}
@@ -739,7 +734,7 @@ Since the right-hand side of the previous equation has no \doop, the usual rules
 \sum_{g} \Palt \left(R = r \mid D=d, G=g \right) \ \Palt \left( G=g \mid D=d \right)
 \end{align*}
 %
-As variables $D$ and $G$ are stochastically independent in $\Palt$ (see Figure~\ref{fig:cDAGs-pruned}), we can simplify:
+As variables $D$ and $G$ are stochastically independent in $\Palt$ (see the causal model on the top of Figure~\ref{fig:cDAGs-pruned}), we can simplify:
 %
 \begin{align*}
 & \sum_{g} \Palt \left(R = r \mid D=d, G=g \right) \ \Palt \left( G=g \mid D=d \right) \\
@@ -772,28 +767,28 @@ P&\left(R=r \mid \mathdo(D=d)\right) \\
 \end{align*}
 
 Now, we can compute the drug's causal effect on recovery by plugging in the numbers from our observational study in Table \ref{tab:combined}.
-We compare the recovery rates for cases where the patients took ($P(R=1\mid \do(D=\textsc{take}$) or refused the drug ($P(R=1\mid \do(D=\textsc{take}$):
+We compare the recovery rates for cases where the patients took ($P(R=1\mid \do(D=1))$) or refused the drug ($P(R=1 \mid \do(D=0))$):
 \begin{equation}
 \begin{split}
-P(R=1\mid \mathdo(D=\textsc{take})
+P(R=1\mid \mathdo(D=1)
 &= \sum_{g\in \{0,1\}} P(R=1\mid G=g; D=1) P(G=g)\\
 &= \frac{81}{87} \cdot \frac{357}{700} + \frac{192}{263} \cdot \frac{343}{700} \approx 0.83
 \end{split}
 \end{equation}
 \begin{equation}
 \begin{split}
-P(R=1\mid \mathdo(D=\textsc{refuse})
+P(R=1\mid \mathdo(D=0)
 &= \sum_{g\in \{0,1\}} P(R=1\mid G=g; D=0) P(G=g)\\
 &= \frac{234}{270} \cdot \frac{357}{700} + \frac{55}{80} \cdot \frac{343}{700} \approx 0.78
 \end{split}
 \end{equation}
-According to these point-valued estimates, patients who take the drug approximately have a 0.83 chance of recovery, while not taking the drug yields a 0.78 chance to recover. 
+According to these point-valued estimates, patients who take the drug have approximately a 0.83 chance of recovery, while not taking the drug yields a 0.78 chance to recover.
 To get the causal effect estimate, we simply have to compare the predicted outcome for patients taking the drug with those refusing it.
-The estimated causal effect of \textsc{drug intake} on \textsc{recovery} is thus $P(R=1\mid \mathdo(D=\textsc{take})-P(R=1\mid \mathdo(D=\textsc{refuse}) \approx 0.05$, meaning that the drug increases the chance of patients to recover by 5\%.
+The estimated causal effect of \textsc{drug intake} on \textsc{recovery} is thus $P(R=1\mid \mathdo(D=1)-P(R=1\mid \mathdo(D=0) \approx 0.05$, meaning that the drug increases the chance of patients to recover by 5\%.
 
 \paragraph{MLE for Scenario 2: blood pressure as mediator.}
 
-In scenario 2, the independent variable $D$ is not causally dependent on any other RV.
+In scenario 2 (see the bottom causal model in Figure~\ref{fig:cDAGs-pruned}), the independent variable $D$ is not causally dependent on any other variable.
 The \doop, whose job it is to remove causal influences on the independent variable, thus doesn't have an effect in this case, because there aren't any causal influences on $D$ to begin with.
 This means that the observed distribution $P$ is identical to the hypothetical distribution $\Palt$. 
 The probability for recovery, in this case, is just $P(R=1\mid D=d)$:
@@ -809,12 +804,10 @@ The probability for recovery, in this case, is just $P(R=1\mid D=d)$:
     &= P\left(R=1\mid D=d\right)
 \end{align*}
 
-
-
-We can thus directly read the maximum-likelihood estimates from the \textsc{recovery} frequencies in the data:
+We therefore directly obtain the maximum-likelihood estimates from the \textsc{recovery} frequencies in the data:
 \begin{equation}
   \begin{split}
-    P(R=1\mid \mathdo(D=\textsc{take})
+    P(R=1\mid \mathdo(D=1))
     = P(R=1\mid D=1)
     = \frac{273}{350} \approx 0.78
   \end{split}
@@ -822,7 +815,7 @@ We can thus directly read the maximum-likelihood estimates from the \textsc{reco
 %
 \begin{equation}
   \begin{split}
-    P(R=1\mid \mathdo(D=\textsc{refuse})
+    P(R=1\mid \mathdo(D=0))
     = P(R=1\mid D=0)
     = \frac{289}{350} \approx 0.83
   \end{split}
@@ -1106,7 +1099,7 @@ This difference denotes the causal effect.
 \end{minipage}
 
 \vspace{-0.5cm}
-\marginnote{Compare these results to the MLE approach in Info Box 2: Both methods yield very similar predictions. This might have been different had we set strong priors in our Bayesian regression.}
+\marginnote{Compare these results to the MLE approach in Info Box 2 \mf{check reference}: Both methods yield very similar predictions. This might have been different had we set strong priors in our Bayesian regression.}
 Our model estimates a causal effect of about 5\%, i.e. patients are predicted to have a 5\% higher chance of recovery when taking the drug.
 However, we can see that the CI includes 0, which means that we don't have enough evidence to reject the null hypothesis that our drug has no effect. 
 

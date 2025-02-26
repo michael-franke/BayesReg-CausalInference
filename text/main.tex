@@ -491,39 +491,43 @@ Once we have settled on one (or several) causal models, the base for our causal 
     \emph{Directed acyclic graphs (DAGs) for causal analysis}
     \medskip
 
-    DAGs can be used to illustrate the causal relationships between events or RVs.
-    %For simplicity, we only consider binary RVs.
-    When two nodes in a causal DAG (cDAG) are connected, the RVs that they represent are statistically dependent.
-    The RV with the outgoing edge causally influences the RV with the incoming edge.
-    cDAGs must be directed and acyclic because causal relationships are one-way only.
-    \begin{center}
-        \begin{tikzpicture}[
-        node distance = 1.25cm,
-        double distance = 2pt,
-        minimum size=0.75cm,
-        circle,
-        thick]
+    DAGs can be used to represent causal relationships between \textit{variables}.
+    Each variable $X$ can take on any of a set of \textit{values}.
+    For example, the variable $D$ for drug-taking can take on values 1 (taken) or 0 (refused).
+    The nodes in a causal DAG (cDAG) represent the variables and a directed edge from $X$ to $Y$ indicates that $X$ is a direct cause of $Y$.
+    The representation of causal relationships in a cDAG is conventionally interpreted as exhaustive: it contains \textit{all} relations of direct causation; when $X$ and $Y$ are not connected, there is \textit{no} direct causal relation between them.
+    % \begin{center}
+    %   \begin{tikzpicture}[
+    %     node distance = 1.25cm,
+    %     double distance = 2pt,
+    %     minimum size=0.75cm,
+    %     circle,
+    %     thick]
 
-        % NODES
-        % anchor
-        \node[] (anchor) {};
-        % node X
-        \node[draw=black, left of = anchor] (A) {$A$};
-        % node Y
-        \node[draw=black, right of = anchor] (B) {$B$};
+    %     %     NODES
+    %     %     anchor
+    %     \node[] (anchor) {};
+    %     %     node X
+    %     \node[draw=black, left of = anchor] (X) {$A$};
+    %     %     node Y
+    %     \node[draw=black, right of = anchor] (Y) {$B$};
 
-        % ARROWS
-        \draw[->] (A)--(B);
-        \end{tikzpicture}
-    \end{center}
-    In this example, the RV $A$ influences the value of the RV $B$.
-    Importantly, this relationship is not necessarily  deterministic, s.t. $A=1$ always implies $B=1$.
-    Instead, it is usually stochastic, s.t. some value of $A$ makes it more likely for $B$ to take a certain value, e.g., $P(B=1 \mid A=1) > P(B=0 \mid A=1)$.
+    %     %     ARROWS
+    %     \draw[->] (A)--(B);
+    %   \end{tikzpicture}
+    % \end{center}
 
-    cDAGs can be comprised of infinitely many nodes.
-    All of their relationships can be brought down to a limited set of shapes.
-    Some of these are shown below: the chain and the fork.
-    Understanding these granular causal structures helps to interpret more complex cDAGs.
+    A complete assignment of values to each variable is a complete description of the relevant facts, a so-called \textit{world}.
+    Causal relations influence the assignment of values to variables either deterministically or probabilistically.
+    In \textit{structural equation models} (SEMs), the value of a variable $X$ is completely determined by the set of values assigned to $X$'s direct causes, also called $X$'s \textit{parents}.
+    In \textit{probabilistic SEMs}, the value of $X$ is completely determined by two things: (i) as before, the set of values of $X$'s parents, and, additionally, (ii) the value of a stochastic \emph{error variable} $U_{X}$, of which we have one fore each variable in the causal model.
+    A special case of probabilistic SEMs are \textit{Bayes Nets} which dispense with the error variables.
+    In a Bayes Net each variable $X$ is associated with a probability distribution over $X$'s values, which is a conditional probability for each set of values of $X$'s parents.
+    % (Probabilistic SEMs are more expressive than Bayes Nets because they allow error variables to be stochastically dependent, but Bayes Nets can be more intuitive and suffice for many practical applications.)
+
+    By design, probabilistic causal models relate facts about causation to facts about stochastic independence of variables.
+    This relationship can be complex, but it can help identify causal structure behind empirical data (\textit{causal discovery}). It can be systematically assessed by decomposing the cDAG's structure into a small number of configurations.
+    Two of these, relevant for our running example, are shown below: the chain and the fork.
 
     \begin{center}
         \begin{tikzpicture}[
@@ -538,18 +542,18 @@ Once we have settled on one (or several) causal models, the base for our causal 
         \node[] (ANCHOR) {};
 
         \node[draw=black, left of = ANCHOR, node distance = 3.75cm] (anchor_chain) {$Z$};
-        \node[below of = ANCHOR, node distance = 0.625cm] (anchor_fork) {};
+        \node[below of = ANCHOR, node distance = 0cm] (anchor_fork) {};
 
         % chain
         \node[draw=black, left of = anchor_chain] (chainX) {$X$};
         \node[draw=black, right of = anchor_chain] (chainY) {$Y$};
-        \node[below of = anchor_chain, node distance = 1.525cm] (chain_cap) {\textit{chain (mediator)}};
+        \node[below of = anchor_chain, node distance = 0.8cm] (chain_cap) {\textit{chain (mediator)}};
 
         % fork
         \node[draw=black, left of = anchor_fork] (forkX) {$X$};
         \node[draw=black, right of = anchor_fork] (forkY) {$Y$};
-        \node[draw=black, above of = anchor_fork] (forkZ) {$Z$};
-        \node[below of = anchor_fork, node distance = 0.9cm] (fork_cap) {\textit{fork (confound)}};
+        \node[draw=black, above of = anchor_fork, node distance = 0cm] (forkZ) {$Z$};
+        \node[below of = anchor_fork, node distance = 0.8cm] (fork_cap) {\textit{fork (confound)}};
 
 
         % ARROWS
@@ -562,15 +566,17 @@ Once we have settled on one (or several) causal models, the base for our causal 
 
     \vspace{-1.25cm}
     In a chain, $X$ and $Y$ are causally dependent: $X$ influences the value of the mediator $Z$, which influences $Y$.
-    Using the example of our hypothetical experiment, $X$ could be a drug which influences the blood pressure level $Z$, which influences the likelihood of recovery $Y$.
     However, $X$ and $Y$ are independent conditioned on $Z$.
-    If the value of blood pressure $Z$ is known, the value of $X$ (drug or no drug) gives us no further information about the recovery $Y$, because the only way in which the drug influences recovery is through adjusting the level of blood pressure.
+    % For example, $X$ could be a drug which influences the blood pressure level $Z$, which influences the likelihood of recovery $Y$.
+    % If we know the blood pressure $Z$, additionally learning the value of $X$ (drug or no drug) gives us no further information about the recovery $Y$, as the only way in which the drug influences recovery is through adjusting the level of blood pressure.
+    Intuitively put, if $Z$ is a mediator, conditioning on $Z$ undermines the signal about the (indirect) causal influence of $X$ on $Y$.
 
     In a fork, $Z$ acts as a confound on $X$ and $Y$.
     $X$ and $Y$ are dependent, because they have a common cause in $Z$.
-    $Z$ could be a variable for exercise, which influences both weight $X$ and danger of a heart disease $Y$.
     $X$ and $Y$ become independent conditioned on $Z$.
-    This is because when the amount of exercise $Z$ is given, knowing the value of a person's weight $X$ yields no further information on their risk of cardiac disease $Y$.
+    % For example, $Z$ could be exercise levels, which influence both weight $X$ and danger of a heart disease $Y$.
+    % Knowing $Z$, learning the value of a person's weight $X$ yields no further information on their risk of cardiac disease $Y$.
+    Roughly speaking, if $Z$ is a confound, conditioning on $Z$ is necessary to decouple stochastic dependence from information about (indirect) causation.
 
     For a visual explanation of these causal structures see  \href{https://youtu.be/mBEA7PKDmiY?si=Ihio7ZXJSuct4J30}{{\color{Red}{this lecture}}} by Richard McElreath.
     \medskip

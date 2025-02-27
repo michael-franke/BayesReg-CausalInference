@@ -839,11 +839,86 @@ Numerically a causal effect of about 5\% may seem pretty small, so how are we to
 This is where the Bayesian approach comes into play.
 How to use Bayesian regression modeling to not only estimate causal effects, but quantify uncertainty about these estimates, is the topic of the remainder of this tutorial.
 
-\section{Tackling Simpson's Paradox with Bayesian Regression} \label{sec:programming}
+\section{Causal effect estimates from Bayesian Regression} \label{sec:programming}
 
-\marginnote{The entire code is available at \href{https://github.com/michael-franke/BayesReg-CausalInference}{{\texttt{https://github.com/michael-franke/\\BayesReg-CausalInference}}}.} 
-Having established the conceptual basics, let's now dive into the programming part. 
+In this section, we calculate causal effects with Bayesian regression.
+Section~\ref{sec:conceptual-approach} first explains \textit{what} it is that we are doing (and why it works).
+Then, Section~\ref{sec:implementation} shows how to implement this approach in R using the \texttt{brms} package.
+
+\subsection{Conceptual approach}
+\label{sec:conceptual-approach}
+
+Based on the previous considerations, we can compute the causal effect of interest as:
+\begin{align*}
+  \text{Avg-CE}(R \mid D) & =  P\left(R=1 \mid \mathdo(D=1)\right) - P\left(R=1 \mid \mathdo(D=0)\right)
+\end{align*}
+In the first scenario, we can reduce the summands on the right-hand side to:
+\begin{align*}
+  P\left(R=1 \mid \mathdo(D=1)\right) &= \sum_{g} P\left(R = 1 \mid D=1, G=g \right) \ P\left( G=g \right) \\
+  P\left(R=1 \mid \mathdo(D=0)\right) &= \sum_{g} P\left(R = 1 \mid D=0, G=g \right) \ P\left( G=g \right)
+\end{align*}
+In the second scenario, the summands are obtained by:
+\begin{align*}
+  P\left(R=1 \mid \mathdo(D=1)\right) &= P\left(R=1\mid D=1 \right) \\
+  P\left(R=1 \mid \mathdo(D=0)\right) &= P\left(R=1\mid D=0 \right)
+\end{align*}
+Taken together, we need estimates of three types of probabilities:
+\begin{itemize}
+  \item the unconditional probability $P(G=g)$ for gender categories
+  \item the conditional probability $P(R=1 \mid D=d, G=g)$ of recovery given $D$ and $G$
+  \item the conditional probability $P(R=1 \mid D=d)$ of recovery given $D$
+\end{itemize}
+We, as modellers, are uncertain about these probabilities, but the available data let's us estimate each.
+The MLE from the previous section demonstrated this, but these estimates did not (directly) express the amount of uncertainty we have.
+(We would get the same MLE values if had observed that same proportions for a million times more data points.)
+To resolve this, we are going to use Bayesian regression modeling to estimate these probabilities, using the usual sampling-based approach.
+Samples for the relevant (conditional and unconditional) probabilities involved will then contain information about how certain we are about our estimates.
+
+To understand how regression comes in, you need to understand a few crucial, general aspects.
+\begin{enumerate}[1.]
+
+  \item A conditional probability distribution like $P(Y \mid X_{1}, \dots, X_{n})$ can be approximated with a regression model which we would normally specify with R's formula syntax: $Y \sim X_{1} * \dots * X_{n}$.
+  If we want to estimate an unconditional probability $P(Y)$, we can do so with a so-called ``intercept-only'' model, as given by regression formula: $Y \sim 1$.
+
+  \item For our current purposes, where we are dealing with binary variables, we need to look at logistic regression models.
+
+  \item Logistic regression models, like other generalized regression models, make predictions at different levels for any value of predictive variables $X_{1}, \dots, X_{n}$.
+  \marginnote{In (non-generalized) standard regression models, the linear predictor and the central tendency are the same.}
+  They predict values for
+  \begin{enumerate}[(i)]
+    \item the linear predictor,
+    \item the central tendency, and
+    \item the dependent / response variable $Y$.
+  \end{enumerate}
+
+  \item Since we are dealing with binary variables and logistic regression, what we care about are predictions at the second level, the level of central tendency.
+  Concretely, we want an estimate of a probability like $P(G=1)$, which is the probability of a participant being male.
+  That's a prediction of central tendency.
+  We do not want a prediction of a log-odds ratio (the linear predictor) or prediction of a single binary category (male or female).
+  \marginnote{We can obtain a prediction of central tendency by sampling many concrete values of the response variable, but that is less efficient than sampling a value of central tendency directly.}
+
+  \item In a Bayesian regression model all of these predictions are probabilistic, including our uncertainty about these values (since we estimate them from limited data).
+  In a usual Bayesian workflow, we would therefore obtain samples from the so-called \textit{posterior predictive distribution} for each one of these different levels.
+  \marginnote{For a detailed explanation of the differences of drawing from the posterior predictive distribution vs. its expectancy, see \href{https://www.andrewheiss.com/blog/2022/09/26/guide-visualizing-types-posteriors/}{{\color{Red}{this blog post}}}.}
+
+\end{enumerate}
+
+These points taken together yield the following approach.
+We use logistic regression with the appropriate dependent and independent variables to estimate to get at the relevant conditional or unconditional probabilities.
+We use samples from the posterior predictive distribution of central tendency (the category probabilities).
+For scenario one, we need to do this in a nested fashion, to reflect the causal effect formula for this case.
+Our uncertainty about the causal effect estimate is the propagated uncertainty inherent in the samples from the posterior predictive distribution.
+
+
+\subsection{Implementation}
+\label{sec:implementation}
+
+Having established the conceptual basics, let's now dive into the programming part.
+%
+\marginnote{The entire code is available at \href{https://github.com/michael-franke/BayesReg-CausalInference}{{\texttt{https://github.com/michael-franke/\\BayesReg-CausalInference}}}.}
+%
 First, we set up the environment and load the required packages:
+%
 \begin{minipage}[]{\textwidth}
 \begin{lstlisting}[language=R]
 # packages for Bayesian regression modeling
@@ -898,77 +973,18 @@ data_SP_long <- rbind(
 \vspace{-0.5cm}
 Now, we can start modeling!
 
-\subsection{Experiment 1: Gender as confound}
-
+\paragraph{Scenario 1: Gender as confound.}
 In scenario 1, the effectiveness of the drug is confounded by \textsc{gender}.
-As we have derived in Section \ref{sec:theory}, we can estimate the probability of recovery with or without the drug as 
-$$P \left(R=r \mid \mathdo (D=d)\right) = \sum_{g} P\left(R = r \mid D=d, G=g \right) \ P\left( G=g \right)$$
-To obtain the probability estimate, we perform Bayesian regression modeling.
-We need to model two probability distributions: first, the distribution of \textsc{gender}, $P\left( G=g \right)$ and second, the conditional probability of \textsc{recovery}, $P\left(R = r \mid D=d, G=g \right)$.
-We will explain two different sampling strategies to obtain these estimates.
-\emph{Method A} is more intuitive, while \emph{Method B} is more efficient, but both are equally adequate.
+As described above, we need to model two probability distributions:
+the (unconditional) probability of \textsc{gender}, $P\left( G=g \right)$ and
+the (conditional) probability of \textsc{recovery}, $P\left(R = r \mid D=d, G=g \right)$.
 
-\begin{center}
-        \begin{tikzpicture}[
-        node distance=2cm,
-        double distance=2pt,
-        minimum width=2cm,
-        minimum height=1cm,
-        text centered, 
-        text width=2.5cm,
-        rectangle,
-        thick]
-
-    
-        % NODES
-        % anchors
-        \node[] (ANCHOR_A) {};
-        \node[right=5cm of ANCHOR_A] (ANCHOR_B) {};
-
-        % Method A
-        \node[above of = ANCHOR_A, node distance = 3cm] (A) {\emph{Method A}};
-        
-        \node[draw=black, fill=BackgroundR, right of = ANCHOR_A, node distance = 1.5cm] (sampleA) {sample participants};
-
-        \node[left of = ANCHOR_A, node distance = 1.5cm] (ANCHOR_recov_A) {};
-
-        \node[draw=black, fill=BackgroundR, above of = sampleA] (genderA) {model \textsc{gender}};
-
-        \node[draw=black, fill=BackgroundR, above of = ANCHOR_recov_A] (recovA) {model \textsc{recovery}};
-
-        \node[draw=black, fill=BackgroundR, below of = ANCHOR_A] (estimateA) {estimate mean recovery of sample};
-
-        % Method B
-        \node[above of = ANCHOR_B, node distance = 3cm] (B) {\emph{Method B}};
-        
-        \node[draw=black, fill=BackgroundR, right of = ANCHOR_B, node distance = 1.5cm] (sampleB) {estimate mean gender};
-
-        \node[draw=black, fill=BackgroundR, left of = ANCHOR_B, node distance = 1.5cm] (ANCHOR_recov_B) {estimate mean recovery};
-
-        \node[draw=black, fill=BackgroundR, above of = sampleB] (genderB) {model \textsc{gender}};
-
-        \node[draw=black, fill=BackgroundR, above of = ANCHOR_recov_B] (recovB) {model \textsc{recovery}};
-
-        \node[draw=black, fill=BackgroundR, below of = ANCHOR_B] (estimateB) {weight mean recovery by mean gender};
-    
-        % ARROWS
-        \draw[->] (genderA)--(sampleA);
-        \draw[->] (sampleA)--(estimateA);
-        \draw[->] (recovA)--(estimateA);
-        \draw[->] (genderB)--(sampleB);
-        \draw[->] (sampleB)--(estimateB);
-        \draw[->] (recovB)--(ANCHOR_recov_B);
-        \draw[->] (ANCHOR_recov_B)--(estimateB);
-        
-        \end{tikzpicture}
-    \end{center}
-
-Both methods start off the same way, by estimating the distribution of \textsc{gender}, $P\left( G=g \right)$ by fitting an intercept-only regression on \textsc{gender}.
-This is a logistic regression because \textsc{gender} is a binary variable in this dataset, and intercept-only because we only want to estimate the probability of the binomial distribution without the influence of any other variable. 
+We start by fitting an intercept-only regression model which allows us to estimate the distribution of \textsc{gender}, $P\left( G=g \right)$.
 
 \begin{minipage}[]{\textwidth}
 \begin{lstlisting}[language=R]
-n_iter = 2000
+# global parameter: number of iterations / samples
+n_iter = 10000
 
 # Estimate the distribution of gender (by intercept-only regression)
 # we need this later when we marginalize over gender
@@ -976,16 +992,14 @@ fit_gender <- brm(
   formula = gender ~ 1,
   data = data_SP_long,
   family = bernoulli(link = "logit"),
-  iter = 2000
+  iter = n_iter
 )
 \end{lstlisting}
 \end{minipage}
 
 \vspace{-0.5cm}
 
-The second step is to estimate the distribution of the conditional probability of recovery, $P\left(R = r \mid D=d, G=g \right)$.
-Because of the virtual intervention with the \doop, we can treat \textsc{gender} and \textsc{drug intake} as independent, and can thus perform a standard logistic regression with two independent variables, by fitting \textsc{recovery} to the interaction of \textsc{drug intake} and \textsc{gender}. 
-This is a logistic regression because our outcome variable is binary (cured or ill). 
+Next, we fit a regression model to help estimate the conditional probability of recovery, $P\left(R = r \mid D=d, G=g \right)$.
 
 \begin{minipage}[]{\textwidth}
 \begin{lstlisting}[language=R]
@@ -999,131 +1013,13 @@ fit_recovery_gender <- brm(
 \end{lstlisting}
 \end{minipage}
 
-\vspace{-0.5cm}
-\emph{Method A}
-
-Using \emph{Method A}, we estimate the distribution of \textsc{recovery} by sampling virtual participants from the estimated distribution of \textsc{gender}, which we then feed into our \textsc{recovery} regression model.
-We start by drawing a sample from our \textsc{gender} distribution. 
-For this, we use the function \ri{predicted\_draws()} from the \ri{tidybayes} package.
-It returns samples from the posterior predictive distribution $P(y_{new} \mid x_{new}, y_{obs})$.
-Here, $x_{new}$ is only one intercept value of 1, because \textsc{gender} doesn't depend on any other variables. After the sampling process, we have a new virtual participant pool for our experiment, which is from the same (estimated) distribution of the original sample in the dataset.
+To get samples from the posterior predictive distributions of these fitted models, we use the function \ri{epred\_draws()} from the \textit{tidybayes} package.
+\marginnote{Notice that the variance in these samples is what quantifies our (modeller's) uncertainty about the value $P(G=1)$.}
+To obtain obtain samples of $P(G=1)$, we pass the intercept value of 1.
+The sampling result is a probability value between 0 and 1, which we can interpret as the estimated fraction of men in the sample.
 
 \begin{minipage}[]{\textwidth}
 \begin{lstlisting}[language=R]
-# Option A): Sample virtual patients from estimated gender distribution
-posterior_gender_sample <- tidybayes::predicted_draws(
-  object = fit_gender,
-  newdata = tibble(Intercept = 1),
-  value = "gender",
-  ndraws = n_iter*2
-) |> 
-  ungroup() |>
-  mutate(gender = ifelse(gender, "Male", "Female")) |>
-  select(gender)
-\end{lstlisting}
-\end{minipage}
-
-\vspace{-0.5cm}
-Now that we have our participants, we can start assigning drugs (or placebos) to them. 
-This is the intervention step. We do this by sampling from the logistic regression model of \textsc{recovery}, while fixing the value of \textsc{drug intake} to \textsc{take} or \textsc{refuse} respectively. 
-Let’s start with the participants who receive the drug. 
-This is the $\mathdo(D=\textsc{take}$ condition. 
-Our logistic regression model expects a \textsc{gender} and a \textsc{drug intake} value as input. 
-For \textsc{gender}, we use the participant pool sampled from the posterior gender distribution. 
-Because we are in the $\mathdo(D=\textsc{take}$ condition, the \textsc{drug intake} value for all participants is set to \textsc{take}. 
-The model then uses this input to predict the recovery rate. 
-Note that here, we’re using a different function for sampling: \ri{epred\_draws} instead of \ri{predicted\_draws()}, which we used for the gender model. 
-\ri{epred\_draws()} doesn’t sample directly from the posterior predictive distribution, but from the expected value of the posterior predictive distribution $\mathbb{E}(y_{new} \mid x_{new}, y_{obs})$. 
-This is because our goal here is not to sample the recovery outcomes for our virtual participants (they’re not real, anyways). 
-What we’re interested in is the expected chance of recovery for any patient taking the drug (in the end, the difference between those cases is not so big, because in both, we take the mean over all samples, which should be the same). 
-\marginnote{For a detailed explanation of the differences of drawing from the posterior predictive distribution vs. its expectancy, see \href{https://www.andrewheiss.com/blog/2022/09/26/guide-visualizing-types-posteriors/}{{\color{Red}{this blog post}}}.}
-
-\begin{minipage}[]{\textwidth}
-\begin{lstlisting}[language=R]
-# posterior predictive samples for do(D = 1)
-posterior_DrugTaken_g <- tidybayes::epred_draws(
-  object = fit_recovery_gender,
-  newdata = posterior_gender_sample |> mutate(drug="Take"),
-  value = "taken",
-  ndraws = n_iter * 2
-) |> ungroup() |>
-  select(taken)
-\end{lstlisting}
-\end{minipage}
-
-\vspace{-0.5cm}
-We obtain the estimate for our expected recovery rate with drug intake by taking the mean of the sampled expected values of the posterior distribution. 
-We estimate that participants have a 83\% chance of recovery when taking the drug.
-
-\begin{minipage}[]{\textwidth}
-\begin{rc}
-> mean(pull(posterior_DrugTaken_g))
-[1] 0.8312855
-\end{rc}
-\end{minipage}
-
-\vspace{-0.5cm}
-We do the same for the \textsc{refuse} condition. 
-Here, when we take the mean of our posterior sample, we learn that participants who refused the drug have an estimated 78\% chance of recovery. 
-
-\begin{minipage}[]{\textwidth}
-\begin{lstlisting}[language=R]
-# posterior predictive samples for do(D = 0)
-posterior_DrugRefused_g <- tidybayes::epred_draws(
-  object = fit_recovery_gender,
-  newdata = posterior_gender_sample |> mutate(drug="Refuse"),
-  value = "refused",
-  ndraws = n_iter * 2
-) |> ungroup() |>
-  select(refused)
-\end{lstlisting}
-\end{minipage}
-
-\vspace{-0.5cm}
-
-\begin{minipage}[]{\textwidth}
-\begin{rc}
-> mean(pull(posterior_DrugRefused_g))
-[1] 0.7777718
-\end{rc}
-\end{minipage}
-
-\vspace{-0.5cm}
-Having estimated the recovery rates in both conditions, all we have to do is to subtract the \textsc{refuse} condition from the \textsc{take} condition and voila, we have ourselves an estimate of the causal effect of drug taking on chances of recovery. 
-The following tibble summarizes the results of our causal analysis. 
-We see the mean and 95\% confidence interval for both conditions, as well as their difference. 
-This difference denotes the causal effect. 
-
-\marginnote{\texttt{summarize\_posterior} is a custom helper function. You can find it on the \href{https://github.com/michael-franke/BayesReg-CausalInference}{{\color{Red}{GitHub page}}} of this tutorial.}
-\begin{minipage}[]{\textwidth}
-\begin{rc}
-> summarize_posterior(posterior_DrugRefused_g, posterior_DrugTaken_g)
-# A tibble: 3 x 4
-  condition     CI_lower   mean CI_upper
-  <fct>            <dbl>  <dbl>    <dbl>
-1 take drug       0.685  0.831     0.969
-2 refuse drug     0.597  0.778     0.900
-3 causal effect  -0.0501 0.0535    0.145
-\end{rc}
-\end{minipage}
-
-\vspace{-0.5cm}
-\marginnote{Compare these results to the MLE approach in Info Box 2 \mf{check reference}: Both methods yield very similar predictions. This might have been different had we set strong priors in our Bayesian regression.}
-Our model estimates a causal effect of about 5\%, i.e. patients are predicted to have a 5\% higher chance of recovery when taking the drug.
-However, we can see that the CI includes 0, which means that we don't have enough evidence to reject the null hypothesis that our drug has no effect. 
-
-\emph{Method B}
-
-\emph{Method B} uses a different sampling strategy than \emph{Method A}. 
-Instead of sampling data points from the \textsc{gender} distribution, we sample the proportion of genders in the distribution. We then estimate the average recovery rate by passing all combinations of \textsc{gender} and \textsc{drug intake} to the \textsc{recovery} regression model, and weight these by the average gender distribution.
-Here, we also start by drawing a sample from the \textsc{gender} distribution, but instead of data points, we sample from the expected value of the posterior predictive distribution with the function \ri{epred\_draws()}.
-As only input, we pass the intercept value of 1.
-The sampling result is a value between 0 and 1, which we can interpret as the estimated fraction of men in the sample.
-
-\begin{minipage}[]{\textwidth}
-\begin{lstlisting}[language=R]
-# Option B): estimate gender distribution by sampling from the expected value of the posterior predictive distribution
-
 posterior_gender_proportion <- tidybayes::epred_draws(
   object = fit_gender,
   newdata = tibble(Intercept = 1),
@@ -1146,56 +1042,50 @@ newdata <- tibble(
   drug = factor(c("Take", "Refuse", "Take", "Refuse"), levels = levels(data_SP_long$drug))
 )
 
-posterior_drug_g_smooth <- tidybayes::epred_draws(
+posterior_drug_g <- tidybayes::epred_draws(
   object  = fit_recovery_gender,
   newdata = newdata,
   value   = "recovery",
   ndraws  = n_iter * 2
-) |> ungroup() |> 
+) |> ungroup() |>
   select(.draw, gender, drug, recovery) |>
-  full_join(posterior_gender_proportion)  |> 
-  mutate(weights = ifelse(gender == "Male", maleProp, 1-maleProp)) |> 
-  group_by(`.draw`, drug) |> 
-  summarize(predRecover = sum(recovery * weights)) |> 
-  pivot_wider(names_from = drug, values_from = predRecover) |> 
-  mutate(causal_effect = Take - Refuse) 
+  full_join(posterior_gender_proportion)  |>
+  mutate(weights = ifelse(gender == "Male",
+                          maleProp, 1-maleProp)) |>
+  group_by(`.draw`, drug) |>
+  summarize(predRecover = sum(recovery * weights)) |>
+  pivot_wider(names_from = drug, values_from = predRecover) |>
+  mutate(causal_effect = Take - Refuse)
+
+posterior_DrugTaken_g <- posterior_drug_g$Take
+posterior_DrugRefused_g <- posterior_drug_g$Refuse
+
 \end{lstlisting}
 \end{minipage}
 
 \vspace{-0.5cm}
-As before, we can evaluate the results by passing the estimates to the \ri{summarize_posterior} function:
+The results of this computation are summarize with the \ri{summarize_posterior} function:
+  \marginnote{\texttt{summarize\_posterior} is a custom helper function. You can find it on the \href{https://github.com/michael-franke/BayesReg-CausalInference}{{\color{Red}{GitHub page}}} of this tutorial.}
 
 \begin{minipage}[]{\textwidth}
 \begin{rc}
-> summarize_posterior(posterior_drug_g_smooth\$Refuse, posterior_drug_g_smooth\$Take)
-# A tibble: 3 x 4
+> summarize_posterior(posterior_DrugRefused_g,
+                      posterior_DrugTaken_g)
+# A tibble: 3 × 4
   condition     CI_lower   mean CI_upper
   <fct>            <dbl>  <dbl>    <dbl>
-1 take drug      0.791   0.832     0.868
-2 refuse drug    0.721   0.778     0.831
-3 causal effect -0.00926 0.0539    0.120
+1 take drug       0.790  0.832     0.868
+2 refuse drug     0.722  0.778     0.830
+3 causal effect  -0.0117 0.0536    0.121
 \end{rc}
 \end{minipage}
 
-We obtain a similar causal estimate to the one obtained by \emph{Method A}.
-However, using \emph{Method B}, the credible interval of our estimates is smaller.
-This is the case because \emph{Method B} uses the expected values of the \textsc{gender} distribution, which have a smaller variance than the actual values for \textsc{gender}.
-You can see a visual comparison of the two methods in Figure \ref{fig:gender}.
-\begin{figure}
-    \centering
-    \includegraphics[width=0.8\linewidth]{../img/gender_estimation_comparison.png}
-    \caption{Causal effect estimation for \textsc{gender} as confound, using different estimation methods. Both methods yield the same mean, but the CI of \emph{Method B} (grey line) is narrower.}
-    \label{fig:gender}
-\end{figure}
+Similar to the MLE approach, we obtain a causal effect estimate of about 5\%, i.e., patients are predicted to have a 5\% higher change of recovery when taking the drug.
+However, we can see that the CI includes 0, which suggests that we do not have enough evidence to rule out that the drug had no effect.
 
-
-\subsection{Scenario 2: Blood pressure as mediator}
-In case 2 of Simpson’s paradox, blood pressure acts as a mediator between the drug and the patients’ recovery. 
-We can estimate the chances of recovery simply as
-$$P\left(R=1\mid \mathdo(D=d)\right)=P\left(R=1\mid D=d\right)$$
-\textsc{blood pressure} is left out of this equation alltogether. 
-\marginnote{In some cases, we don't want to compute the total causal effect, but only the direct causal effect, i.e. what effect does $D$ have on $R$ without the mediator $B$. In these cases, we would need to fit \textsc{recovery} to \textsc{drug intake} and \textsc{blood pressure}.}
-After all, we’re only interested in the total causal effect of the drug, so to us it doesn't matter whether this effect takes place directly, or via changing the blood pressure.
+\paragraph{Scenario 2: Blood pressure as mediator}
+In scenario 2, blood pressure acts as a mediator between the drug and the patients’ recovery.
+As described above, we simply need to calculate the conditional recovery probability $P(R=1 \mid D=d)$.
 Therefore, we fit \textsc{recovery} to \textsc{drug intake}.
 
 \begin{minipage}[]{\textwidth}
@@ -1211,10 +1101,7 @@ fit_recovery_bp <- brm(
 \end{minipage}
 
 \vspace{-0.5cm}
-Because \textsc{drug intake} is the only predictive factor in our model, and the do-operation on \textsc{drug intake} has no effect (all causal links remain), we can obtain our posterior estimates of recovery rates with and without drug use by simply extracting the posterior draws that the model generated during fitting, and filter them according to the value of \textsc{drug intake}. 
-\marginnote{In this instance, because $P(R=1\mid \mathdo(D=d))=P(R=1\mid D=d)$, there is no difference between observation and intervention}
-We can do this with the \ri{filter\_cell\_draws} function from the \ri{faintr} package. 
-\ri{filter\_cell\_draws} returns the posterior predictions of the linear predictor, therefore we need to apply the logistic function to obtain the expected values of the posterior predictive distribution. 
+As we do not have to do any further calculations to estimate the causal effect in scenario 2, all we need to do is extract the relevant posterior predictive samples, which we can here do by extracting the samples of the linear predictor values and feeding them into a logistic function:
 
 \begin{minipage}[]{\textwidth}
 \begin{lstlisting}[language=R]

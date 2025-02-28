@@ -144,15 +144,18 @@ posterior_g <- tidybayes::epred_draws(
   value   = "recovery",
   ndraws  = n_iter * 2
 ) |> ungroup() |> 
-  select(.draw, gender, drug, recovery) |>
-  full_join(posterior_gender_proportion)
+  select(.draw, gender, drug, recovery) 
 
 # obtain estimates of causal effect by
 #   calculating the weighted average of recovery rates for each 
 #   value of drug, weighted by the est. proportions of males
-posterior_g <- posterior_g |> 
+posterior_g <- posterior_g |>
+  # add the previous samples of P(G=1)
+  #  and flip, where necessary, to P(G = 0)
+  full_join(posterior_gender_proportion) |> 
   mutate(weights = ifelse(gender == "Male", 
                           maleProp, 1-maleProp)) |> 
+  # calculate P(G=g) * P(R|G=g, D=d) for each combination of G and D
   group_by(`.draw`, drug) |> 
   summarize(predRecover = sum(recovery * weights)) |> 
   pivot_wider(names_from = drug, values_from = predRecover) |> 

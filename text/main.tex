@@ -217,10 +217,10 @@ In a final step, we use the causal effect formula and the usual sampling-based u
     \begin{tikzpicture}[
       node distance=6cm,
       double distance=2pt,
-      minimum width=3cm,
+      minimum width=3.5cm,
       minimum height=1cm,
       text centered,
-      text width=3cm,
+      text width=3.3cm,
       rectangle,
       thick]
 
@@ -264,7 +264,8 @@ The tutorial is structured as follows.
 Section~\ref{sec:experiment} introduces a fictitious data set that will serve as our running example for this tutorial.
 The data set instantiates a case of \textit{Simpson's paradox}.
 In Section~\ref{sec:theory}, the theoretical background to the \docalc is explained and we use a maximum-likelihood approach to estimate the relevant causal effects for our running example.
-Finally, Section~\ref{sec:programming} explains how we can obtain estimates of causal effects with quantified uncertainty from Bayesian regression models.
+Section~\ref{sec:programming} explains how we can obtain estimates of causal effects with quantified uncertainty from Bayesian regression models.
+Section~\ref{sec:conclusions--next} reflects what this tutorial achieved and gives references for where to continue learning about causal inference.
 
 
 
@@ -842,13 +843,13 @@ How to use Bayesian regression modeling to not only estimate causal effects, but
 \section{Causal effect estimates from Bayesian Regression} \label{sec:programming}
 
 In this section, we calculate causal effects with Bayesian regression.
-Section~\ref{sec:conceptual-approach} first explains \textit{what} it is that we are doing (and why it works).
-Then, Section~\ref{sec:implementation} shows how to implement this approach in R using the \texttt{brms} package.
+Section~\ref{sec:conceptual-approach} first explains \textit{what} it is that we are doing.
+Then, Section~\ref{sec:implementation} shows \textit{how} to implement this approach in R using the \texttt{brms} package.
 
 \subsection{Conceptual approach}
 \label{sec:conceptual-approach}
 
-Based on the previous considerations, we can compute the causal effect of interest as:
+As described above, we can compute the causal effect of interest as:
 \begin{align*}
   \text{Avg-CE}(R \mid D) & =  P\left(R=1 \mid \mathdo(D=1)\right) - P\left(R=1 \mid \mathdo(D=0)\right)
 \end{align*}
@@ -870,7 +871,6 @@ Taken together, we need estimates of three types of probabilities:
 \end{itemize}
 We, as modellers, are uncertain about these probabilities, but the available data let's us estimate each.
 The MLE from the previous section demonstrated this, but these estimates did not (directly) express the amount of uncertainty we have.
-(We would get the same MLE values if had observed that same proportions for a million times more data points.)
 To resolve this, we are going to use Bayesian regression modeling to estimate these probabilities, using the usual sampling-based approach.
 Samples for the relevant (conditional and unconditional) probabilities involved will then contain information about how certain we are about our estimates.
 
@@ -895,16 +895,16 @@ To understand how regression comes in, you need to understand a few crucial, gen
   Concretely, we want an estimate of a probability like $P(G=1)$, which is the probability of a participant being male.
   That's a prediction of central tendency.
   We do not want a prediction of a log-odds ratio (the linear predictor) or prediction of a single binary category (male or female).
-  \marginnote{We can obtain a prediction of central tendency by sampling many concrete values of the response variable, but that is less efficient than sampling a value of central tendency directly.}
+  \marginnote[-2cm]{We can obtain a prediction of central tendency by sampling many concrete values of the response variable, but that is less efficient than sampling a value of central tendency directly.}
 
-  \item In a Bayesian regression model all of these predictions are probabilistic, including our uncertainty about these values (since we estimate them from limited data).
+  \item In a Bayesian regression model all of these predictions are probabilistic, since they represent our uncertainty about these values (as we estimate them from limited data).
   In a usual Bayesian workflow, we would therefore obtain samples from the so-called \textit{posterior predictive distribution} for each one of these different levels.
-  \marginnote{For a detailed explanation of the differences of drawing from the posterior predictive distribution vs. its expectancy, see \href{https://www.andrewheiss.com/blog/2022/09/26/guide-visualizing-types-posteriors/}{{\color{Red}{this blog post}}}.}
+  \marginnote[-1.7cm]{For a detailed explanation of the differences of drawing samples from different levels of posterior predictive distributions, see \href{https://www.andrewheiss.com/blog/2022/09/26/guide-visualizing-types-posteriors/}{{\color{Red}{this blog post}}}.}
 
 \end{enumerate}
 
 These points taken together yield the following approach.
-We use logistic regression with the appropriate dependent and independent variables to estimate to get at the relevant conditional or unconditional probabilities.
+We use logistic regression with the appropriate dependent and independent variables to get at the relevant conditional or unconditional probabilities.
 We use samples from the posterior predictive distribution of central tendency (the category probabilities).
 For scenario one, we need to do this in a nested fashion, to reflect the causal effect formula for this case.
 Our uncertainty about the causal effect estimate is the propagated uncertainty inherent in the samples from the posterior predictive distribution.
@@ -921,31 +921,46 @@ First, we set up the environment and load the required packages:
 %
 \begin{minipage}[]{\textwidth}
 \begin{lstlisting}[language=R]
-# packages for Bayesian regression modeling
-library(brms) 
-# install faintr from Github (easy evaluation of brms models)
-devtools::install_github("michael-franke/faintr")
+#### packages, options, seed ----
 
-# packages for data wrangling
-library(tibble)     # dataframes 
-library(tidyr)      # for re-grouping dataframes
+# for Bayesian regression modelling
+library(brms)       # Bayesian regression models
+library(HDInterval) # for calculating highest density intervals
+library(tidybayes)  # for tidy output of Bayesian models
+# for data wrangling
+library(tibble)     # dataframes
+library(tidyr)      # for tidying dataframes
 library(dplyr)      # intuitive data manipulation
+# for plotting
+library(ggplot2)    # for plots
 
-# option for Bayesian regression models: 
+# option for Bayesian regression models:
 # use all available cores for parallel computing
 options(mc.cores = parallel::detectCores())
 
-# random seeding for reproducibility
+# seeding for reproducibility
 set.seed(123)
 \end{lstlisting}
 \end{minipage}
 
 \vspace{-0.5cm}
-Then, we create a dataset with the values from Table \ref{tab:combined} and transform it into the required shape.
+We also the number of samples to use for each variable:
 
 \begin{minipage}[]{\textwidth}
 \begin{lstlisting}[language=R]
-# generate dataset with Simpson's paradox
+# global parameter: number of iterations / samples
+n_iter = 5000
+\end{lstlisting}
+\end{minipage}
+
+\vspace{-0.5cm}
+Next, we create a dataset with the values from Table \ref{tab:combined} and transform it into the required shape.
+
+\begin{minipage}[]{\textwidth}
+\begin{lstlisting}[language=R]
+#### preparing the data set ----
+
+# generate dataset with Simpsons paradox
 data_simpsons_paradox <- tibble(
   gender = c("Male", "Male", "Female", "Female"),
   bloodP = c("Low", "Low", "High", "High"),
@@ -957,16 +972,19 @@ data_simpsons_paradox <- tibble(
 
 # cast into long format (one observation per row)
 data_SP_long <- rbind(
-  data_simpsons_paradox |> 
+  data_simpsons_paradox |>
     uncount(k) |>
     mutate(recover = TRUE) |>
-    select(-N, -proportion), 
+    select(-N, -proportion),
   data_simpsons_paradox |>
     uncount(N-k) |>
     mutate(recover=FALSE) |>
     select(-k, -N, -proportion)
+  ) |> # this part is new
+  mutate(
+    gender = factor(gender),
+    drug = factor(drug)
   )
-
 \end{lstlisting}
 \end{minipage}
 
@@ -978,16 +996,12 @@ In scenario 1, the effectiveness of the drug is confounded by \textsc{gender}.
 As described above, we need to model two probability distributions:
 the (unconditional) probability of \textsc{gender}, $P\left( G=g \right)$ and
 the (conditional) probability of \textsc{recovery}, $P\left(R = r \mid D=d, G=g \right)$.
-
-We start by fitting an intercept-only regression model which allows us to estimate the distribution of \textsc{gender}, $P\left( G=g \right)$.
+Therefore, we first fit an intercept-only regression model which allows us to estimate the distribution of \textsc{gender}, $P\left( G=g \right)$.
 
 \begin{minipage}[]{\textwidth}
 \begin{lstlisting}[language=R]
-# global parameter: number of iterations / samples
-n_iter = 10000
-
-# Estimate the distribution of gender (by intercept-only regression)
-# we need this later when we marginalize over gender
+# estimate the distribution of gender
+#   (by intercept-only regression)
 fit_gender <- brm(
   formula = gender ~ 1,
   data = data_SP_long,
@@ -1003,7 +1017,8 @@ Next, we fit a regression model to help estimate the conditional probability of 
 
 \begin{minipage}[]{\textwidth}
 \begin{lstlisting}[language=R]
-# Estimate the distribution of recovery rates as predicted by drug intake and gender
+# estimate the distribution of recovery rates as predicted
+#   by gender and treatment
 fit_recovery_gender <- brm(
   formula = recover ~ gender * drug,
   data = data_SP_long,
@@ -1013,75 +1028,105 @@ fit_recovery_gender <- brm(
 \end{lstlisting}
 \end{minipage}
 
-To get samples from the posterior predictive distributions of these fitted models, we use the function \ri{epred\_draws()} from the \textit{tidybayes} package.
+To get samples from the posterior predictive distributions (of central tendency) of fitted models, we use the function \ri{epred\_draws()} from the \textit{tidybayes} package.
 \marginnote{Notice that the variance in these samples is what quantifies our (modeller's) uncertainty about the value $P(G=1)$.}
-To obtain obtain samples of $P(G=1)$, we pass the intercept value of 1.
-The sampling result is a probability value between 0 and 1, which we can interpret as the estimated fraction of men in the sample.
+For the case at hand, since we want samples of $P(G=1)$, we pass the intercept value of 1 in the \ri{newdata} argument of the \ri{epred\_draws()} function.
+Each sample from the posterior predictive distribution of central tendency is a probability value between 0 and 1, which we can interpret as the estimated fraction of men in the sample.
 
 \begin{minipage}[]{\textwidth}
 \begin{lstlisting}[language=R]
+#  estimate gender distribution by sampling from the expected value
+#    of the posterior predictive distribution
+#  (estimate the fraction of men in the sample)
 posterior_gender_proportion <- tidybayes::epred_draws(
   object = fit_gender,
   newdata = tibble(Intercept = 1),
   value = "maleProp", #proportion of men in the sample
   ndraws = n_iter * 2
-) |> ungroup() |> 
+) |> ungroup() |>
   select(.draw, maleProp)
 \end{lstlisting}
 \end{minipage}
 
 \vspace{-0.5cm}
-We then estimate the average recovery rate for all combinations of \textsc{gender} and \textsc{drug intake} by drawing from the expected values of the posterior predictive distributions of the \textsc{recovery} regression model. 
-These averages are then weighted with the estimated fraction of men and women, respectively, to obtain the weighted recovery estimation for the entire sample. 
+We then estimate the average recovery rate for all combinations of \textsc{gender} and \textsc{drug intake} by drawing from the expected values of the posterior predictive distributions of the \textsc{recovery} regression model.
+To do so, we first define a data structure with all combinations of levels of the predictor variables.
 
 \begin{minipage}[]{\textwidth}
 \begin{lstlisting}[language=R]
-# posterior predictive samples for all combinations of drug and gender
+# make a data frame with all compbinations of values for variables
+#   of drug and gender
 newdata <- tibble(
   gender = factor(c("Male", "Male", "Female", "Female"), levels = levels(data_SP_long$gender)),
   drug = factor(c("Take", "Refuse", "Take", "Refuse"), levels = levels(data_SP_long$drug))
 )
+\end{lstlisting}
+\end{minipage}
 
-posterior_drug_g <- tidybayes::epred_draws(
+\vspace{-0.5cm}
+This structure is passed into the argument \ri{newdata} to obtain samples from the posterior predictive distribution of central tendency, via \ri{epred\_draws()} as before.
+
+\begin{minipage}[]{\textwidth}
+\begin{lstlisting}[language=R]
+# get posterior predictive samples for each combination of values
+#  for drug and genders
+posterior_g <- tidybayes::epred_draws(
   object  = fit_recovery_gender,
   newdata = newdata,
   value   = "recovery",
   ndraws  = n_iter * 2
 ) |> ungroup() |>
-  select(.draw, gender, drug, recovery) |>
-  full_join(posterior_gender_proportion)  |>
-  mutate(weights = ifelse(gender == "Male",
-                          maleProp, 1-maleProp)) |>
-  group_by(`.draw`, drug) |>
-  summarize(predRecover = sum(recovery * weights)) |>
-  pivot_wider(names_from = drug, values_from = predRecover) |>
-  mutate(causal_effect = Take - Refuse)
-
-posterior_DrugTaken_g <- posterior_drug_g$Take
-posterior_DrugRefused_g <- posterior_drug_g$Refuse
-
+  select(.draw, gender, drug, recovery)
 \end{lstlisting}
 \end{minipage}
 
 \vspace{-0.5cm}
-The results of this computation are summarize with the \ri{summarize_posterior} function:
+The data frame \ri{posterior_g} now contains samples of $P(R=1 \mid D=d, G=g)$.
+We need to multiply each prediction for $P(R=1 \mid D=d, G=g)$ with a sample of $P(G=g)$, the estimated fraction of men and women, respectively, which are stored in \ri{posterior_gender_proportion}.
+This allows us to obtain samples of the causal effect we are interested in.
+
+\begin{minipage}[]{\textwidth}
+\begin{lstlisting}[language=R]
+# obtain estimates of causal effect by
+#   calculating the weighted average of recovery rates for each
+#   value of drug, weighted by the est. proportions of males
+posterior_g <- posterior_g |>
+  # add the previous samples of P(G=1)
+  #  and flip, where necessary, to P(G = 0)
+  full_join(posterior_gender_proportion) |>
+  mutate(weights = ifelse(gender == "Male",
+                          maleProp, 1-maleProp)) |>
+  # calculate P(G=g) * P(R|G=g, D=d) for each combination of G and D
+  group_by(`.draw`, drug) |>
+  summarize(predRecover = sum(recovery * weights)) |>
+  pivot_wider(names_from = drug, values_from = predRecover) |>
+  # causal effect estimates are obtained from by subtracting
+  #   the predicted recovery rates when the drug is refused from
+  #   the predicted recovery rates when the drug is taken
+  mutate(causal_effect = Take - Refuse)
+\end{lstlisting}
+\end{minipage}
+
+\vspace{-0.5cm}
+The results of these computations are summarized with the \ri{summarize_posterior} function:
   \marginnote{\texttt{summarize\_posterior} is a custom helper function. You can find it on the \href{https://github.com/michael-franke/BayesReg-CausalInference}{{\color{Red}{GitHub page}}} of this tutorial.}
 
 \begin{minipage}[]{\textwidth}
 \begin{rc}
 > summarize_posterior(posterior_DrugRefused_g,
                       posterior_DrugTaken_g)
-# A tibble: 3 × 4
+# A tibble: 3 x 4
   condition     CI_lower   mean CI_upper
   <fct>            <dbl>  <dbl>    <dbl>
-1 take drug       0.790  0.832     0.868
-2 refuse drug     0.722  0.778     0.830
-3 causal effect  -0.0117 0.0536    0.121
+1 take drug       0.792  0.832     0.869
+2 refuse drug     0.726  0.778     0.834
+3 causal effect  -0.0121 0.0534    0.120
 \end{rc}
 \end{minipage}
 
-Similar to the MLE approach, we obtain a causal effect estimate of about 5\%, i.e., patients are predicted to have a 5\% higher change of recovery when taking the drug.
-However, we can see that the CI includes 0, which suggests that we do not have enough evidence to rule out that the drug had no effect.
+\vspace{-0.5cm}
+Similar to the MLE approach, we obtain a causal effect estimate of about 5\%, i.e., patients are predicted to have a roughly 5\% higher chance of recovery when taking the drug.
+However, we can see that the credible interval includes 0, which suggests that we do not have enough evidence to rule out that the drug has no causal effect.
 
 \paragraph{Scenario 2: Blood pressure as mediator}
 In scenario 2, blood pressure acts as a mediator between the drug and the patients’ recovery.
@@ -1090,7 +1135,7 @@ Therefore, we fit \textsc{recovery} to \textsc{drug intake}.
 
 \begin{minipage}[]{\textwidth}
 \begin{lstlisting}[language=R]
-# Estimate the distribution of recovery rates as predicted by drug intake
+# fitting a regression model to predict recovery based on drug use alone
 fit_recovery_bp <- brm(
   formula = recover ~ drug,
   data = data_SP_long,
@@ -1101,27 +1146,30 @@ fit_recovery_bp <- brm(
 \end{minipage}
 
 \vspace{-0.5cm}
-As we do not have to do any further calculations to estimate the causal effect in scenario 2, all we need to do is extract the relevant posterior predictive samples, which we can here do by extracting the samples of the linear predictor values and feeding them into a logistic function:
+As we do not have to do any further calculations to estimate the causal effect in scenario 2, all we need to do is extract the relevant posterior predictive samples, and computing samples of the causal effect, as we did previously.
 
 \begin{minipage}[]{\textwidth}
 \begin{lstlisting}[language=R]
-# posterior predictive samples for drug = 1 
-posterior_DrugTaken_bp <-
-  faintr::filter_cell_draws(fit_recovery_bp, drug == "Take") |>
-  pull(draws) |>
-  logistic()
-
-# posterior predictive samples for drug = 0 
-posterior_DrugRefused_bp <-
-  faintr::filter_cell_draws(fit_recovery_bp, drug == "Refuse") |>
-  pull(draws) |>
-  logistic()
-
+# posterior predictive samples for the recovery rate
+#   when the drug is refused and taken
+posterior_bp <-
+  tidybayes::epred_draws(
+    object = fit_recovery_bp,
+    newdata = tibble(drug = c("Refuse", "Take")),
+    value = "predRecover", # prob. of recovery
+    ndraws = n_iter * 2
+  ) |> ungroup() |>
+  select(.draw, drug, predRecover) |>
+  pivot_wider(names_from = drug, values_from = predRecover) |>
+  # causal effect estimates are obtained from by subtracting
+  #   the predicted recovery rates when the drug is refused from
+  #   the predicted recovery rates when the drug is taken
+  mutate(causal_effect = Take - Refuse)
 \end{lstlisting}
 \end{minipage}
 
 \vspace{-0.5cm}
-With the posterior samples, we can continue as in case one: compute the means of both conditions to obtain the estimated chance of recovery with and without drug-taking, and then subtract the posterior samples of the \textsc{refuse} condition from the samples of the \textsc{take} condition to obtain the estimate of the causal effect of \textsc{drug intake} on \textsc{recovery}. 
+Summary statistic for these samples of causal effect estimates are:
 
 \begin{minipage}[]{\textwidth}
 \begin{rc}
@@ -1129,30 +1177,33 @@ With the posterior samples, we can continue as in case one: compute the means of
 # A tibble: 3 x 4
   condition     CI_lower    mean CI_upper
   <fct>            <dbl>   <dbl>    <dbl>
-1 take drug        0.733  0.779    0.821 
-2 refuse drug      0.783  0.825    0.863 
-3 causal effect   -0.107 -0.0457   0.0127
+1 take drug        0.736  0.779    0.823
+2 refuse drug      0.785  0.825    0.863
+3 causal effect   -0.103 -0.0458   0.0131
 \end{rc}
 \end{minipage}
 
 \vspace{-0.5cm}
 We can see that taking the drug yields an estimated 78\% chance of recovery, while not taking it leads to a 83\% chance.
 The causal effect is estimated to be -5\%, such that taking the drug is estimated to have detrimental effects on recovery.
-As in the first scenario, the CI includes 0, such that we can't discard the null hypothesis.
+As in the first scenario, the CI includes 0, so that we cannot safely rule out that there is no causal effect.
 
 \begin{figure}
     \centering
-    \includegraphics[width=0.8\linewidth]{../img/posterior_causal_effect_smooth.png}
-    \caption{Posterior distributions of the causal effect for both scenarios. Bold Black lines indicate CIs, the means are shown as black dots.}
+    \includegraphics[width=0.8\linewidth]{../code/posterior_causal_effect_smooth.png}
+    \caption{Posterior distributions of the causal effect for both scenarios. Bold Black lines indicate 95\% credible intervals, the posterior means are shown as black dots.}
     \label{fig:posteriors}
 \end{figure}
 
+\section{Conclusions \& next steps}
+\label{sec:conclusions--next}
+
 Taking a step back, what can we learn from these hypothetical scenarios?
 The data for both scenarios was identical.
-Despite that, the outcomes were different: even though both causal effects were not significant, they point to different directions, as can be seen in Figure \ref{fig:posteriors}.
+Despite that, the computations of causal effects were different and the results reflected this: even though both causal effects were not credibly different from zero, they point in different directions, as can be seen in Figure \ref{fig:posteriors}.
 This illustrates the importance of choosing the correct causal structure. 
 Going beyond our hypothetical scenarios, we showed that the \docalc can, in some scenarios, be used to estimate causal effects, even if the data at hand stems from observational studies.
-To estimate the causal effects, both frequentist (MLE) and Bayesian methods yield similar results, however, only with the Bayesian approach do we get a measure of certainty for our results.
+To estimate the causal effects, both frequentist (MLE) and Bayesian methods yield similar results, yet only with a Bayesian sampling-based approach also allowed us to flexibly quantify the uncertainty of causal effect estimates.
 
 \begin{InfoBox}
 \centering

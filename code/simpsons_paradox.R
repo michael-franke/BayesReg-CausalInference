@@ -1,16 +1,15 @@
-# packages for Bayesian regression modelling
-library(brms)      
-# install faintr from Github (easy evaluation of brm models)
-#devtools::install_github("michael-franke/faintr")
+#### packages, options, seed ----
 
+# for Bayesian regression modelling
+library(brms)       # Bayesian regression models
+library(HDInterval) # for calculating highest density intervals
+library(tidybayes)  # for tidy output of Bayesian models
 # for data wrangling 
 library(tibble)     # dataframes
 library(tidyr)      # for tidying dataframes
 library(dplyr)      # intuitive data manipulation
-
 # for plotting
 library(ggplot2)    # for plots
-
 
 # option for Bayesian regression models: 
 # use all available cores for parallel computing
@@ -19,18 +18,25 @@ options(mc.cores = parallel::detectCores())
 # seeding for reproducibility
 set.seed(123)
 
-#### helper functions
+
+#### global parameters ----
+
+# number of iterations / samples
+n_iter = 5000
+
+
+#### helper functions ----
 
 #' function to compare posteriors of two conditions 
 #' returns a dataframe with the means and CIs of both conditions, as well as
-#' their difference
+#'   their difference
 summarize_posterior <- function(post_do0, post_do1, 
                                 label_do0 = "refuse drug",
                                 label_do1 = "take drug") {
   
   # Ensure the inputs are tibbles and the columns are named "value"  
-  # (this is ugly but necessary to ensure the 
-  # function can handle tibbles and normal lists as input)
+  # (this is ugly but necessary to ensure that the 
+  #   function can handle tibbles and normal lists as input)
   post_do0 <- tibble(value = pull(as_tibble(post_do0)))
   post_do1 <- tibble(value = pull(as_tibble(post_do1)))
   
@@ -48,9 +54,9 @@ summarize_posterior <- function(post_do0, post_do1,
   post_sum <- combined_data |>
     group_by(condition) |>
     summarize(
-      CI_lower = quantile(value, 0.025),
+      CI_lower = HDInterval::hdi(value)[1],
       mean = mean(value),
-      CI_upper = quantile(value, 0.975)
+      CI_upper = HDInterval::hdi(value)[2]
     )
   
   # reorder columns
@@ -63,7 +69,7 @@ summarize_posterior <- function(post_do0, post_do1,
   
 }
 
-
+#### preparing the data set ----
 
 # generate dataset with Simpsons paradox
 data_simpsons_paradox <- tibble(
@@ -91,14 +97,11 @@ data_SP_long <- rbind(
     drug = factor(drug)
   )
 
-# global parameter: number of iterations / samples
-n_iter = 10000
 
+#### scenario 1: causal inference with gender as confound ----
 
-#### scenario 1: causal inference with gender as confound
-
-# fist, estimate the distribution of gender (by intercept-only regression)
-# we need this later when we marginalize over gender
+# estimate the distribution of gender 
+#   (by intercept-only regression)
 fit_gender <- brm(
   formula = gender ~ 1,
   data = data_SP_long,
@@ -106,8 +109,8 @@ fit_gender <- brm(
   iter = n_iter
 )
 
-# then estimate the distribution of recovery rates as predicted
-# by gender and treatment (this is before the do-calculus step)
+# estimate the distribution of recovery rates as predicted
+#   by gender and treatment
 fit_recovery_gender <- brm(
   formula = recover ~ gender * drug,
   data = data_SP_long,
@@ -116,7 +119,7 @@ fit_recovery_gender <- brm(
 )
 
 #  estimate gender distribution by sampling from the expected value
-#  of the posterior predictive distribution
+#    of the posterior predictive distribution
 #  (estimate the fraction of men in the sample)
 posterior_gender_proportion <- tidybayes::epred_draws(
   object = fit_gender,
@@ -126,41 +129,51 @@ posterior_gender_proportion <- tidybayes::epred_draws(
 ) |> ungroup() |> 
   select(.draw, maleProp)
 
-# we want to obtain posterior predictive samples for all combinations of drug and gender
-# so, here we first build the combinations of values for dependent variables
+# make a data frame with all compbinations of values for variables
+#   of drug and gender
 newdata <- tibble(
   gender = factor(c("Male", "Male", "Female", "Female"), levels = levels(data_SP_long$gender)),
   drug = factor(c("Take", "Refuse", "Take", "Refuse"), levels = levels(data_SP_long$drug))
 )
 
-# now, we can get posterior predictive samples for each of these input values
-posterior_drug_g <- tidybayes::epred_draws(
+# get posterior predictive samples for each combination of values
+#  for drug and genders
+posterior_g <- tidybayes::epred_draws(
   object  = fit_recovery_gender,
   newdata = newdata,
   value   = "recovery",
   ndraws  = n_iter * 2
 ) |> ungroup() |> 
   select(.draw, gender, drug, recovery) |>
-  full_join(posterior_gender_proportion)  |> 
+  full_join(posterior_gender_proportion)
+
+# obtain estimates of causal effect by
+#   calculating the weighted average of recovery rates for each 
+#   value of drug, weighted by the est. proportions of males
+posterior_g <- posterior_g |> 
   mutate(weights = ifelse(gender == "Male", 
                           maleProp, 1-maleProp)) |> 
   group_by(`.draw`, drug) |> 
   summarize(predRecover = sum(recovery * weights)) |> 
   pivot_wider(names_from = drug, values_from = predRecover) |> 
+  # causal effect estimates are obtained from by subtracting 
+  #   the predicted recovery rates when the drug is refused from
+  #   the predicted recovery rates when the drug is taken
   mutate(causal_effect = Take - Refuse) 
 
-posterior_DrugTaken_g <- posterior_drug_g$Take
-posterior_DrugRefused_g <- posterior_drug_g$Refuse
+# samples of posterior predictive samples when the drug is 
+#   refused and taken
+posterior_DrugRefused_g <- posterior_g$Refuse
+posterior_DrugTaken_g <- posterior_g$Take
 
+# summarizing posterior estimates
 post_sum_g <- summarize_posterior(posterior_DrugRefused_g, 
                                   posterior_DrugTaken_g)
                                   
 
-#### scenario 2: causal inference with blood pressure as mediator
+#### scenario 2: causal inference with blood pressure as mediator ----
 
-# in this formula, we ignore blood pressure altogether, because we only care about the 
-# total causal effect that the drug has on recovery, independent of whether 
-# this effect occurs directly or via the change in BP
+# fitting a regression model to predict recovery based on drug use alone
 fit_recovery_bp <- brm(
   formula = recover ~ drug,
   data = data_SP_long,
@@ -168,6 +181,8 @@ fit_recovery_bp <- brm(
   iter = n_iter
 )
 
+# posterior predictive samples for the recovery rate
+#   when the drug is refused and taken
 posterior_bp <- 
   tidybayes::epred_draws(
     object = fit_recovery_bp,
@@ -177,67 +192,53 @@ posterior_bp <-
   ) |> ungroup() |> 
   select(.draw, drug, predRecover) |> 
   pivot_wider(names_from = drug, values_from = predRecover) |> 
+  # causal effect estimates are obtained from by subtracting 
+  #   the predicted recovery rates when the drug is refused from
+  #   the predicted recovery rates when the drug is taken
   mutate(causal_effect = Take - Refuse) 
 
+# samples of posterior predictive samples when the drug is 
+#   refused and taken
 posterior_DrugRefused_bp <- posterior_bp$Refuse
 posterior_DrugTaken_bp   <- posterior_bp$Take
 
-# summarize results 
-post_sum_bp <- summarize_posterior(posterior_DrugRefused_bp, posterior_DrugTaken_bp)
+# summarizing posterior estimates
+post_sum_bp <- summarize_posterior(posterior_DrugRefused_bp, 
+                                   posterior_DrugTaken_bp)
 
-# compute posteriors of causal effect by subtracting DrugRefused from DrugTaken
-posterior_effect_g <- posterior_DrugTaken_g - posterior_DrugRefused_g
-posterior_effect_bp <- posterior_DrugTaken_bp - posterior_DrugRefused_bp
+#### plotting ----
 
 # plot posteriors
-p <- ggplot() + 
+ggplot() + 
   geom_vline(aes(xintercept = 0),
              linetype = "dashed",
              color = "darkgrey") +
-  # mean lines
-  #geom_vline(aes(xintercept = post_sum_g$mean[3]),
-  #           color = "darkgrey") +
-  #geom_vline(aes(xintercept = post_sum_bp$mean[3]),
-  #           color = "darkgrey") +
-  # gender
-  #geom_density(data=posterior_effect_g, 
-  #             mapping = aes(x=taken,
-  #                           color = "darkred"), 
-  #             kernel="gaussian",
-  #             linewidth = 1,
-  #             key_glyph = "path") +
-  geom_density(data=posterior_drug_g, 
+  # samples of CE for gender
+  geom_density(data=posterior_g, 
                mapping = aes(x=causal_effect,
                              color = "darkred"), 
                kernel="gaussian",
                linewidth = 1,
                key_glyph = "path") +
-  # blood pressure
+  # samples of CE for gender for blood pressure
   geom_density(data=posterior_bp, 
                mapping = aes(x=causal_effect,
                              color ="darkorange"), 
                kernel="gaussian",
                linewidth = 1,
                key_glyph = "path") +
-  # CIs
-  # ragged gender
-  #geom_segment(aes(x = post_sum_g$CI_lower[3],
-  #                 xend = post_sum_g$CI_upper[3],
-  #                 y = 1.5, yend = 1.5),
-  #             linewidth = 1) +
-  # smooth gender
+  # 95% CIs 
   geom_segment(aes(x = post_sum_g$CI_lower[3],
                    xend = post_sum_g$CI_upper[3],
-                   y = 1.5, yend = 1.5),
+                   y = 1.6, yend = 1.6),
                linewidth = 1) +
   geom_segment(aes(x = post_sum_bp$CI_lower[3],
                    xend = post_sum_bp$CI_upper[3],
-                   y = 3, yend = 3),
+                   y = 2.9, yend = 2.9),
                linewidth = 1) +
   # mean points
-  #geom_point(aes(x = post_sum_g$mean[3], y=1.5)) +
-  geom_point(aes(x = post_sum_g$mean[3], y=1.5)) +
-  geom_point(aes(x = post_sum_bp$mean[3], y=3)) +
+  geom_point(aes(x = post_sum_g$mean[3], y=1.6)) +
+  geom_point(aes(x = post_sum_bp$mean[3], y=2.9)) +
   # design
   theme_classic() +
   theme(legend.position.inside = c(0.8, 0.8)) +

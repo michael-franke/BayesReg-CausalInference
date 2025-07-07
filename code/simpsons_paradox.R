@@ -1,3 +1,6 @@
+# set working directory to file location
+setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+
 #### packages, options, seed ----
 
 # for Bayesian regression modelling
@@ -18,6 +21,8 @@ options(mc.cores = parallel::detectCores())
 # seeding for reproducibility
 set.seed(123)
 
+# color definition
+mygreen <- rgb(34,178,34,maxColorValue = 255)
 
 #### global parameters ----
 
@@ -211,6 +216,78 @@ post_sum_bp <- summarize_posterior(posterior_DrugRefused_bp,
 
 #### plotting ----
 
+#Combine data of both experiments in one data format
+posterior_combined <- bind_rows(
+  tibble(causal_effect = posterior_g$causal_effect) %>% 
+    mutate(mediator_label = "Gender as \nconfound"),
+  tibble(causal_effect = posterior_bp$causal_effect) %>% 
+    mutate(mediator_label = "Blood pressure \nas mediator")
+)
+
+# Combine summary data for means and CIs
+summary_combined <- bind_rows(
+  post_sum_g[3, ] %>% mutate(mediator_label = "Gender as \nconfound"),
+  post_sum_bp[3, ] %>% mutate(mediator_label = "Blood pressure \nas mediator")
+) %>%
+  select(mediator_label, mean, CI_lower, CI_upper)
+
+# Plot
+ggplot(posterior_combined, aes(x = causal_effect)) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "darkgrey") +
+  
+  # Density plot with fill and color
+  geom_density(aes(fill = mediator_label, color = mediator_label),
+               alpha = 0.4, linewidth = 1, kernel = "gaussian",
+               key_glyph = "path") +
+  
+  # Confidence intervals
+  geom_segment(data = summary_combined,
+               aes(x = CI_lower, xend = CI_upper, y = 0.1, yend = 0.1),
+               inherit.aes = FALSE,
+               linewidth = 1) +
+  
+  # Mean points
+  geom_point(data = summary_combined,
+             aes(x = mean, y = 0.1),
+             inherit.aes = FALSE,
+             size = 3) +
+  
+  # Facet by mediator
+  facet_wrap(~ mediator_label, ncol = 1, scales = "free_y") +
+  
+  # Clean design
+  theme_classic() +
+  theme(
+    strip.text = element_blank(),
+    strip.background = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.line.y = element_blank(),
+    legend.position.inside = c(0.8, 0.8),
+    legend.spacing.y = unit(5, "lines"),
+    legend.margin = margin(t = 5, b = 5)
+  ) +
+  
+  labs(x = "Causal effect") +
+  scale_color_manual(values = c("Gender as \nconfound" = "darkorange",
+                                "Blood pressure \nas mediator" = mygreen),
+                     labels = c( #this is necessary to force spacing
+                       "\nGender as \nconfound",
+                       " \nBlood pressure \nas mediator"  
+                     )) +
+  scale_fill_manual(values = c("Gender as \nconfound" = "darkorange",
+                               "Blood pressure \nas mediator" = mygreen)) +
+  guides(color = guide_legend(title = NULL,
+                              position = "inside",
+                              override.aes = list(alpha = 1)),
+         fill = "none")
+
+
+
+
+
+
 # plot posteriors
 ggplot() + 
   geom_vline(aes(xintercept = 0),
@@ -254,7 +331,7 @@ ggplot() +
                                   "Gender as \n confound")) 
 
 # save figure
-ggsave(plot = last_plot(), filename = "posterior_causal_effect_smooth.png",
+ggsave(plot = last_plot(), filename = "posterior_causal_effect.png",
        width = 6, height = 4)
 
 
